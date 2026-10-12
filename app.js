@@ -1,11 +1,5 @@
 /* ============================================================
    APP — Logic Form Speed Extruder
-   ============================================================
-   - Load daftar mesin dari GAS
-   - Klik mesin → overlay input SPK + speed
-   - Lookup SPK ke GAS (validasi jenis)
-   - Scanner integration (via Scanner.open)
-   - Simpan ke Sheet Inputan via GAS
    ============================================================ */
 
 (function () {
@@ -14,23 +8,20 @@
      STATE GLOBAL
      ------------------------------------------------------------ */
   let daftarMesin = [];
-  let kategoriMesin = {};       // { namaMesin: 'PP'|'PE'|'HD'|'LAIN' }
-  let hasilInput = {};          // { namaMesin: { noSPK, speed } }
-  let currentMesin = null;      // mesin aktif di overlay
+  let kategoriMesin = {};
+  let hasilInput = {};
+  let currentMesin = null;
   let currentKategori = null;
-  let currentSPKData = null;    // data SPK hasil lookup
+  let currentSPKData = null;
   let currentSPKValid = false;
   let toastTimer = null;
   let lookupSeq = 0;
 
   /* ------------------------------------------------------------
-     UTIL: Ambil elemen
+     UTIL
      ------------------------------------------------------------ */
   function $(id) { return document.getElementById(id); }
 
-  /* ------------------------------------------------------------
-     UTIL: Toast
-     ------------------------------------------------------------ */
   function showToast(msg, type) {
     const t = $('toast');
     if (!t) return;
@@ -44,17 +35,11 @@
     toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2800);
   }
 
-  /* ------------------------------------------------------------
-     UTIL: cssEscape untuk selector
-     ------------------------------------------------------------ */
   function cssEscape(str) {
     if (window.CSS && CSS.escape) return CSS.escape(str);
     return String(str).replace(/["\\]/g, '\\$&');
   }
 
-  /* ------------------------------------------------------------
-     UTIL: Tahun dari input tanggal
-     ------------------------------------------------------------ */
   function getTahunDariTanggal() {
     const val = $('tanggal').value;
     if (val && val.length >= 4) return val.substring(0, 4);
@@ -62,21 +47,47 @@
   }
 
   /* ------------------------------------------------------------
-     UTIL: Fetch ke GAS
+     JSONP CALL KE GAS
      ------------------------------------------------------------ */
-  function callGAS(params, method) {
-    const url = CONFIG.GAS_URL + (method === 'POST' ? '' : '?' + new URLSearchParams(params).toString());
+  function callGAS(params) {
+    return new Promise(function (resolve, reject) {
+      const cbName = 'jsonp_cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
+      const script = document.createElement('script');
 
-    if (method === 'POST') {
-      return fetch(url, {
-        method: 'POST',
-        // text/plain untuk hindari preflight OPTIONS
-        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-        body: JSON.stringify(params)
-      }).then(function (r) { return r.json(); });
-    } else {
-      return fetch(url).then(function (r) { return r.json(); });
-    }
+      let done = false;
+
+      function cleanup() {
+        if (done) return;
+        done = true;
+        try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
+        if (script && script.parentNode) script.parentNode.removeChild(script);
+      }
+
+      window[cbName] = function (data) {
+        cleanup();
+        resolve(data);
+      };
+
+      const qs = new URLSearchParams(params).toString();
+      const url = CONFIG.GAS_URL +
+        '?callback=' + encodeURIComponent(cbName) +
+        '&' + qs;
+
+      script.src = url;
+      script.onerror = function () {
+        cleanup();
+        reject(new Error('JSONP gagal — cek koneksi atau URL GAS'));
+      };
+
+      document.body.appendChild(script);
+
+      setTimeout(function () {
+        if (!done) {
+          cleanup();
+          reject(new Error('JSONP timeout'));
+        }
+      }, 20000);
+    });
   }
 
   /* ------------------------------------------------------------
@@ -147,7 +158,6 @@
       });
     }
 
-    // Esc untuk tutup overlay input
     document.addEventListener('keydown', function (e) {
       if (e.key === 'Escape') {
         const overlay = $('overlayInput');
@@ -166,7 +176,7 @@
         '<div class="loading-wrap"><span class="loading"></span> Memuat daftar mesin...</div>';
     }
 
-    callGAS({ action: 'getMesin' }, 'GET')
+    callGAS({ action: 'getMesin' })
       .then(function (res) {
         if (!res || !res.success) {
           throw new Error((res && res.error) || 'Gagal memuat mesin.');
@@ -263,7 +273,7 @@
   }
 
   /* ------------------------------------------------------------
-     OVERLAY INPUT: BUKA
+     OVERLAY INPUT
      ------------------------------------------------------------ */
   function openInputOverlay(namaMesin) {
     currentMesin = namaMesin;
@@ -361,7 +371,7 @@
       noSPK: noSPK,
       kategori: kategori,
       tahun: tahun
-    }, 'GET')
+    })
     .then(function (res) {
       if (seq !== lookupSeq) return;
       handleLookupResult(res);
@@ -433,7 +443,6 @@
   function openScanner() {
     Scanner.open(
       function (barcode) {
-        // Scan sukses → isi SPK + lookup
         const el = $('spkInput');
         if (el) {
           el.value = barcode;
@@ -441,14 +450,12 @@
           onSPKInputChange();
         }
       },
-      function () {
-        // Scanner ditutup tanpa scan — tidak perlu apa-apa
-      }
+      function () { /* closed tanpa scan */ }
     );
   }
 
   /* ------------------------------------------------------------
-     OK: Simpan ke hasilInput
+     OK
      ------------------------------------------------------------ */
   function onOk() {
     if (!currentSPKValid || !currentSPKData || !currentMesin) return;
@@ -472,7 +479,7 @@
   }
 
   /* ------------------------------------------------------------
-     SIMPAN KE SHEET
+     SIMPAN
      ------------------------------------------------------------ */
   function onSimpan() {
     const tanggal = $('tanggal').value;
@@ -507,8 +514,8 @@
 
     callGAS({
       action: 'simpan',
-      rows: rows
-    }, 'POST')
+      rows: JSON.stringify(rows)
+    })
     .then(function (res) {
       btn.disabled = false;
       btn.textContent = '💾 Simpan ke Sheet Inputan';
@@ -520,7 +527,6 @@
 
       showToast('Berhasil disimpan: ' + res.jumlah + ' baris.', 'success');
 
-      // Reset setelah simpan
       hasilInput = {};
       refreshMesinButtons();
       updateSummary();
