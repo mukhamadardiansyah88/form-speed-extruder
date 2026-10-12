@@ -1,1 +1,160 @@
-<!-- placeholder -->
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+
+  <title>Form Speed Extruder</title>
+
+  <link rel="icon" type="image/png" href="https://cdn-icons-png.flaticon.com/512/9272/9272469.png">
+  <link rel="apple-touch-icon" href="https://cdn-icons-png.flaticon.com/512/9272/9272469.png">
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- BACKGROUND ANIMASI FUTURISTIK -->
+  <div class="bg-anim"></div>
+  <div class="grid-overlay"></div>
+  <div class="scanline"></div>
+  <div class="orb orb1"></div>
+  <div class="orb orb2"></div>
+  <div class="orb orb3"></div>
+
+  <div class="container">
+
+    <!-- HEADER -->
+    <header>
+      <img class="logo" src="https://cdn-icons-png.flaticon.com/512/9272/9272469.png" alt="Logo">
+      <h1>FORM SPEED EXTRUDER</h1>
+      <div class="subtitle">Production Speed Input System</div>
+    </header>
+
+    <!-- PANEL KONTROL -->
+    <div class="panel">
+      <div class="panel-title">Kontrol Produksi</div>
+      <div class="form-row">
+        <div class="form-group">
+          <label for="tanggal">Tanggal</label>
+          <input type="date" id="tanggal">
+        </div>
+        <div class="form-group">
+          <label for="shift">Shift</label>
+          <select id="shift">
+            <option value="SHIFT-PAGI">SHIFT-PAGI</option>
+            <option value="SHIFT-SORE">SHIFT-SORE</option>
+            <option value="SHIFT-MALAM">SHIFT-MALAM</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- PANEL MESIN -->
+    <div class="panel">
+      <div class="panel-title">Daftar Mesin</div>
+      <div id="mesinContainer">
+        <div class="loading-wrap">
+          <span class="loading"></span> Memuat daftar mesin...
+        </div>
+      </div>
+    </div>
+
+    <!-- SIMPAN -->
+    <div class="panel">
+      <button class="btn btn-success" id="btnSimpan" disabled>
+        💾 Simpan ke Sheet Inputan
+      </button>
+      <div class="summary" id="summary"></div>
+    </div>
+
+    <!-- FOOTER CREDIT -->
+    <footer class="footer-credit">
+      <div class="footer-line"></div>
+      <div class="footer-text">
+        PT MAHKOTA SUKSES MAKMUR · <span id="footerTahun">2026</span>
+      </div>
+      <div class="footer-line"></div>
+    </footer>
+
+  </div>
+
+  <!-- ============================================ -->
+  <!-- OVERLAY 1: INPUT SPK & SPEED                 -->
+  <!-- ============================================ -->
+  <div class="overlay" id="overlayInput">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="modalTitle">Mesin</div>
+        <button class="close-btn" id="btnCloseInput" type="button">✕</button>
+      </div>
+
+      <label for="spkInput">No SPK</label>
+      <div class="spk-input-row">
+        <input type="text" id="spkInput" placeholder="Ketik / scan No SPK..." autocomplete="off">
+        <button class="scan-btn" id="btnScan" type="button">📷 Scan</button>
+      </div>
+
+      <div class="spk-info" id="spkInfo">
+        <div class="label">Informasi SPK</div>
+        <div class="value" id="spkInfoValue">—</div>
+      </div>
+
+      <div class="speed-group">
+        <label for="speedInput">Speed</label>
+        <input type="text" id="speedInput" placeholder="0" inputmode="decimal" autocomplete="off">
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="btnCancelInput" type="button">Batal</button>
+        <button class="btn btn-primary" id="btnOk" type="button" disabled>OK</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- OVERLAY 2: SCANNER                           -->
+  <!-- ============================================ -->
+  <div class="overlay overlay-scanner" id="overlayScanner">
+    <div class="scanner-modal">
+      <div class="modal-header">
+        <div class="modal-title">📷 SCAN BARCODE / QR</div>
+        <button class="close-btn" id="btnCloseScanner" type="button">✕</button>
+      </div>
+
+      <div class="scanner-wrapper" id="scannerWrapper">
+        <div class="scanner-inner">
+          <div id="qr-reader"></div>
+          <div class="scan-line"></div>
+          <div class="corner tl"></div>
+          <div class="corner tr"></div>
+          <div class="corner bl"></div>
+          <div class="corner br"></div>
+        </div>
+      </div>
+
+      <div class="scanner-status" id="scannerStatus">
+        <span class="loading"></span> Menyiapkan kamera...
+      </div>
+    </div>
+  </div>
+
+  <!-- TOAST -->
+  <div class="toast" id="toast"></div>
+
+  <!-- LIBRARY SCANNER -->
+  <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+
+  <!-- SCRIPT APP -->
+  <script src="config.js"></script>
+  <script src="scanner.js"></script>
+  <script src="app.js"></script>
+
+</body>
+</html>
