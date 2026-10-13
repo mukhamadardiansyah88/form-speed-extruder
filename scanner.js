@@ -1,8 +1,7 @@
 /* ============================================================
    SCANNER — html5-qrcode wrapper
    ============================================================
-   Fix: setelah scan sukses, scanner di-STOP + CLEAR total
-   supaya bisa dipakai ulang berkali-kali.
+   Fix bug "paused": buat instance baru setiap kali open.
    ============================================================ */
 
 const Scanner = (function () {
@@ -63,9 +62,6 @@ const Scanner = (function () {
     };
   }
 
-  /* ------------------------------------------------------------
-     UI: Set status
-     ------------------------------------------------------------ */
   function setStatus(html, isSuccess) {
     const { status } = getEls();
     if (!status) return;
@@ -74,7 +70,7 @@ const Scanner = (function () {
   }
 
   /* ------------------------------------------------------------
-     MAP: Format string → enum Html5QrcodeSupportedFormats
+     MAP: Format string → enum
      ------------------------------------------------------------ */
   function mapFormats(formatStrings) {
     const map = {
@@ -95,12 +91,50 @@ const Scanner = (function () {
   }
 
   /* ------------------------------------------------------------
-     INIT: Buat instance Html5Qrcode (sekali saja)
+     DESTROY: Buang instance lama + bersihkan DOM
      ------------------------------------------------------------ */
-  function initInstance() {
-    if (scanner) return;
+  function destroyInstance() {
+    return new Promise(function (resolve) {
+      const { qrReader } = getEls();
+
+      if (!scanner) {
+        if (qrReader) qrReader.innerHTML = '';
+        return resolve();
+      }
+
+      // Coba stop dulu (kalau gagal, tidak apa-apa)
+      let stopPromise;
+      try {
+        stopPromise = scanner.stop();
+      } catch (e) {
+        stopPromise = Promise.resolve();
+      }
+
+      stopPromise
+        .then(function () {
+          try { scanner.clear(); } catch (e) {}
+          scanner = null;
+          if (qrReader) qrReader.innerHTML = '';
+          resolve();
+        })
+        .catch(function () {
+          try { scanner.clear(); } catch (e) {}
+          scanner = null;
+          if (qrReader) qrReader.innerHTML = '';
+          resolve();
+        });
+    });
+  }
+
+  /* ------------------------------------------------------------
+     CREATE: Buat instance baru
+     ------------------------------------------------------------ */
+  function createInstance() {
     const formats = mapFormats(CONFIG.SCANNER_FORMATS);
     const { qrReader } = getEls();
+
+    // Pastikan elemen kosong
+    if (qrReader) qrReader.innerHTML = '';
 
     scanner = new Html5Qrcode(qrReader.id, {
       verbose: false,
@@ -118,7 +152,6 @@ const Scanner = (function () {
     if (!isScanning) return;
     isScanning = false;
 
-    // Pause dulu biar tidak scan ulang saat delay
     try { scanner.pause(true); } catch (e) {}
 
     playBeep();
@@ -126,28 +159,26 @@ const Scanner = (function () {
 
     setStatus('✓ Berhasil: ' + decodedText, true);
 
-    setTimeout(function () {
-      // STOP + CLEAR total, supaya instance siap dipakai ulang
-      stopCamera().then(function () {
-        closeInternal();
+    const result = decodedText;
 
+    setTimeout(function () {
+      destroyInstance().then(function () {
+        closeInternal();
         if (typeof onResultCallback === 'function') {
-          onResultCallback(decodedText);
+          onResultCallback(result);
         }
       });
     }, CONFIG.SCANNER.SUCCESS_DELAY_MS);
   }
 
-  function onScanError() { /* silent — error frame by frame normal */ }
+  function onScanError() { /* silent */ }
 
   /* ------------------------------------------------------------
-     START: Nyalakan kamera
+     START: Nyalakan kamera (instance sudah dibuat)
      ------------------------------------------------------------ */
   function startCamera() {
     const { wrapper } = getEls();
     if (wrapper) wrapper.style.display = '';
-
-    initInstance();
 
     setStatus('<span class="loading"></span> Menyiapkan kamera...');
 
@@ -244,34 +275,7 @@ const Scanner = (function () {
   }
 
   /* ------------------------------------------------------------
-     STOP: Matikan kamera + reset instance
-     ------------------------------------------------------------ */
-  function stopCamera() {
-    return new Promise(function (resolve) {
-      if (!scanner) return resolve();
-
-      try {
-        scanner.stop()
-          .then(function () {
-            isScanning = false;
-            try { scanner.clear(); } catch (e) {}
-            resolve();
-          })
-          .catch(function () {
-            try { scanner.clear(); } catch (e) {}
-            isScanning = false;
-            resolve();
-          });
-      } catch (e) {
-        try { scanner.clear(); } catch (e2) {}
-        isScanning = false;
-        resolve();
-      }
-    });
-  }
-
-  /* ------------------------------------------------------------
-     OPEN: Buka overlay scanner
+     OPEN
      ------------------------------------------------------------ */
   function open(onResult, onClose) {
     onResultCallback = typeof onResult === 'function' ? onResult : null;
@@ -280,20 +284,23 @@ const Scanner = (function () {
     const { overlay } = getEls();
     if (!overlay) return;
 
-    overlay.classList.add('active');
-
-    setTimeout(startCamera, 200);
+    // Buang instance lama dulu, baru buat baru, baru nyalakan
+    destroyInstance().then(function () {
+      createInstance();
+      overlay.classList.add('active');
+      setTimeout(startCamera, 200);
+    });
   }
 
   /* ------------------------------------------------------------
-     CLOSE: Tutup overlay scanner (dari tombol ✕ / klik luar)
+     CLOSE
      ------------------------------------------------------------ */
   function close(fromSuccess) {
     if (!fromSuccess && typeof onCloseCallback === 'function') {
       try { onCloseCallback(); } catch (e) {}
     }
 
-    stopCamera().then(function () {
+    destroyInstance().then(function () {
       closeInternal();
     });
   }
@@ -309,7 +316,7 @@ const Scanner = (function () {
   }
 
   /* ------------------------------------------------------------
-     BIND: Tombol close + klik luar
+     BIND
      ------------------------------------------------------------ */
   document.addEventListener('DOMContentLoaded', function () {
     const btnClose = document.getElementById('btnCloseScanner');
