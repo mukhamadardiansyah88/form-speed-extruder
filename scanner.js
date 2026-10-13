@@ -1,10 +1,8 @@
 /* ============================================================
    SCANNER — html5-qrcode wrapper
    ============================================================
-   Logic:
-   - Klik tombol Scan → overlay scanner muncul → kamera nyala
-   - Scan sukses → beep + getar + tampilkan hasil → close
-   - Klik ✕ → close tanpa hasil
+   Fix: setelah scan sukses, scanner di-STOP + CLEAR total
+   supaya bisa dipakai ulang berkali-kali.
    ============================================================ */
 
 const Scanner = (function () {
@@ -120,6 +118,7 @@ const Scanner = (function () {
     if (!isScanning) return;
     isScanning = false;
 
+    // Pause dulu biar tidak scan ulang saat delay
     try { scanner.pause(true); } catch (e) {}
 
     playBeep();
@@ -127,12 +126,15 @@ const Scanner = (function () {
 
     setStatus('✓ Berhasil: ' + decodedText, true);
 
-    // Tutup setelah delay
     setTimeout(function () {
-      close(true);
-      if (typeof onResultCallback === 'function') {
-        onResultCallback(decodedText);
-      }
+      // STOP + CLEAR total, supaya instance siap dipakai ulang
+      stopCamera().then(function () {
+        closeInternal();
+
+        if (typeof onResultCallback === 'function') {
+          onResultCallback(decodedText);
+        }
+      });
     }, CONFIG.SCANNER.SUCCESS_DELAY_MS);
   }
 
@@ -149,16 +151,13 @@ const Scanner = (function () {
 
     setStatus('<span class="loading"></span> Menyiapkan kamera...');
 
-    // Cek dukungan
     if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
       return startWithFacingMode();
     }
 
-    // Auto-detect kamera
     navigator.mediaDevices.getUserMedia({ video: true })
       .then(function (stream) {
         stream.getTracks().forEach(t => t.stop());
-
         return navigator.mediaDevices.enumerateDevices();
       })
       .then(function (devices) {
@@ -245,25 +244,26 @@ const Scanner = (function () {
   }
 
   /* ------------------------------------------------------------
-     STOP: Matikan kamera
+     STOP: Matikan kamera + reset instance
      ------------------------------------------------------------ */
   function stopCamera() {
     return new Promise(function (resolve) {
       if (!scanner) return resolve();
+
       try {
-        if (isScanning) {
-          scanner.stop().then(function () {
+        scanner.stop()
+          .then(function () {
             isScanning = false;
+            try { scanner.clear(); } catch (e) {}
             resolve();
-          }).catch(function () {
+          })
+          .catch(function () {
+            try { scanner.clear(); } catch (e) {}
             isScanning = false;
             resolve();
           });
-        } else {
-          scanner.clear();
-          resolve();
-        }
       } catch (e) {
+        try { scanner.clear(); } catch (e2) {}
         isScanning = false;
         resolve();
       }
@@ -282,33 +282,34 @@ const Scanner = (function () {
 
     overlay.classList.add('active');
 
-    // Kasih delay dikit biar overlay render dulu, baru nyalain kamera
     setTimeout(startCamera, 200);
   }
 
   /* ------------------------------------------------------------
-     CLOSE: Tutup overlay scanner
+     CLOSE: Tutup overlay scanner (dari tombol ✕ / klik luar)
      ------------------------------------------------------------ */
   function close(fromSuccess) {
-    const { overlay, wrapper } = getEls();
-    if (!overlay) return;
-
     if (!fromSuccess && typeof onCloseCallback === 'function') {
       try { onCloseCallback(); } catch (e) {}
     }
 
     stopCamera().then(function () {
-      overlay.classList.remove('active');
-      if (wrapper) wrapper.style.display = '';
-      isScanning = false;
-      setStatus('<span class="loading"></span> Menyiapkan kamera...');
-      onResultCallback = null;
-      onCloseCallback = null;
+      closeInternal();
     });
   }
 
+  function closeInternal() {
+    const { overlay, wrapper } = getEls();
+    if (overlay) overlay.classList.remove('active');
+    if (wrapper) wrapper.style.display = '';
+    isScanning = false;
+    setStatus('<span class="loading"></span> Menyiapkan kamera...');
+    onResultCallback = null;
+    onCloseCallback = null;
+  }
+
   /* ------------------------------------------------------------
-     BIND: Tombol close
+     BIND: Tombol close + klik luar
      ------------------------------------------------------------ */
   document.addEventListener('DOMContentLoaded', function () {
     const btnClose = document.getElementById('btnCloseScanner');
@@ -318,7 +319,6 @@ const Scanner = (function () {
       });
     }
 
-    // Klik area gelap di luar modal scanner → close
     const overlayScanner = document.getElementById('overlayScanner');
     if (overlayScanner) {
       overlayScanner.addEventListener('click', function (e) {
@@ -326,7 +326,6 @@ const Scanner = (function () {
       });
     }
 
-    // Bangunkan motor getar saat pertama kali user sentuh
     window.addEventListener('touchstart', function wakeVibrate() {
       try { navigator.vibrate && navigator.vibrate(1); } catch (e) {}
       window.removeEventListener('touchstart', wakeVibrate);
