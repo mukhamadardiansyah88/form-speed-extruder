@@ -1,7 +1,9 @@
 /* ============================================================
    SCANNER — html5-qrcode wrapper
    ============================================================
-   Fix bug "paused": buat instance baru setiap kali open.
+   Fix:
+   - Instance baru setiap kali open (hindari bug "paused")
+   - Callback tetap dipanggil setelah scan sukses
    ============================================================ */
 
 const Scanner = (function () {
@@ -102,7 +104,6 @@ const Scanner = (function () {
         return resolve();
       }
 
-      // Coba stop dulu (kalau gagal, tidak apa-apa)
       let stopPromise;
       try {
         stopPromise = scanner.stop();
@@ -133,7 +134,6 @@ const Scanner = (function () {
     const formats = mapFormats(CONFIG.SCANNER_FORMATS);
     const { qrReader } = getEls();
 
-    // Pastikan elemen kosong
     if (qrReader) qrReader.innerHTML = '';
 
     scanner = new Html5Qrcode(qrReader.id, {
@@ -160,13 +160,18 @@ const Scanner = (function () {
     setStatus('✓ Berhasil: ' + decodedText, true);
 
     const result = decodedText;
+    // Simpan callback dulu — karena closeInternal mungkin reset
+    const cb = onResultCallback;
 
     setTimeout(function () {
       destroyInstance().then(function () {
         closeInternal();
-        if (typeof onResultCallback === 'function') {
-          onResultCallback(result);
+        if (typeof cb === 'function') {
+          cb(result);
         }
+        // Reset callback setelah dipakai
+        onResultCallback = null;
+        onCloseCallback = null;
       });
     }, CONFIG.SCANNER.SUCCESS_DELAY_MS);
   }
@@ -174,7 +179,7 @@ const Scanner = (function () {
   function onScanError() { /* silent */ }
 
   /* ------------------------------------------------------------
-     START: Nyalakan kamera (instance sudah dibuat)
+     START: Nyalakan kamera
      ------------------------------------------------------------ */
   function startCamera() {
     const { wrapper } = getEls();
@@ -284,7 +289,6 @@ const Scanner = (function () {
     const { overlay } = getEls();
     if (!overlay) return;
 
-    // Buang instance lama dulu, baru buat baru, baru nyalakan
     destroyInstance().then(function () {
       createInstance();
       overlay.classList.add('active');
@@ -293,7 +297,7 @@ const Scanner = (function () {
   }
 
   /* ------------------------------------------------------------
-     CLOSE
+     CLOSE (manual — tombol ✕ atau klik luar)
      ------------------------------------------------------------ */
   function close(fromSuccess) {
     if (!fromSuccess && typeof onCloseCallback === 'function') {
@@ -302,6 +306,8 @@ const Scanner = (function () {
 
     destroyInstance().then(function () {
       closeInternal();
+      onResultCallback = null;
+      onCloseCallback = null;
     });
   }
 
@@ -311,8 +317,8 @@ const Scanner = (function () {
     if (wrapper) wrapper.style.display = '';
     isScanning = false;
     setStatus('<span class="loading"></span> Menyiapkan kamera...');
-    onResultCallback = null;
-    onCloseCallback = null;
+    // callback TIDAK di-null-kan di sini
+    // supaya onScanSuccess tetap bisa panggil
   }
 
   /* ------------------------------------------------------------
