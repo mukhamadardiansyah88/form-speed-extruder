@@ -347,10 +347,17 @@
   }
 
   /* ------------------------------------------------------------
-     SPK LOOKUP
+     SPK LOOKUP (juga filter angka 0-9)
      ------------------------------------------------------------ */
   function onSPKInputChange() {
-    const noSPK = $('spkInput').value.trim();
+    const el = $('spkInput');
+
+    // Filter: hanya angka 0-9 (SPK = angka murni)
+    const before = el.value;
+    const after = before.replace(/[^0-9]/g, '');
+    if (before !== after) el.value = after;
+
+    const noSPK = after.trim();
     if (noSPK === '') {
       resetSPKInfo();
       currentSPKData = null;
@@ -423,16 +430,27 @@
     $('btnOk').disabled = !(currentSPKValid && speedOk);
   }
 
+  /* ------------------------------------------------------------
+     SPEED (paksa koma)
+     ------------------------------------------------------------ */
   function onSpeedChange() {
     const el = $('speedInput');
     let v = el.value;
-    v = v.replace(/[^0-9.,]/g, '');
-    const firstSep = v.search(/[.,]/);
-    if (firstSep !== -1) {
-      const head = v.substring(0, firstSep + 1);
-      const tail = v.substring(firstSep + 1).replace(/[.,]/g, '');
+
+    // Titik → koma (biar user yang ketik 14.6 tetap aman)
+    v = v.replace(/\./g, ',');
+
+    // Hanya angka + koma
+    v = v.replace(/[^0-9,]/g, '');
+
+    // Hanya satu koma
+    const firstComma = v.indexOf(',');
+    if (firstComma !== -1) {
+      const head = v.substring(0, firstComma + 1);
+      const tail = v.substring(firstComma + 1).replace(/,/g, '');
       v = head + tail;
     }
+
     if (v !== el.value) el.value = v;
     updateOkState();
   }
