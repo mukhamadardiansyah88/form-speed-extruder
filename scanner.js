@@ -4,6 +4,7 @@
    Fix:
    - Instance baru setiap kali open (hindari bug "paused")
    - Callback tetap dipanggil setelah scan sukses
+   - UI kaku: overlay scanner TIDAK menutup saat klik luar
    ============================================================ */
 
 const Scanner = (function () {
@@ -297,7 +298,7 @@ const Scanner = (function () {
   }
 
   /* ------------------------------------------------------------
-     CLOSE (manual — tombol ✕ atau klik luar)
+     CLOSE (manual — hanya tombol ✕)
      ------------------------------------------------------------ */
   function close(fromSuccess) {
     if (!fromSuccess && typeof onCloseCallback === 'function') {
@@ -332,12 +333,8 @@ const Scanner = (function () {
       });
     }
 
-    const overlayScanner = document.getElementById('overlayScanner');
-    if (overlayScanner) {
-      overlayScanner.addEventListener('click', function (e) {
-        if (e.target.id === 'overlayScanner') close(false);
-      });
-    }
+    // UI KAKU: listener klik-luar overlayScanner DIHAPUS.
+    // Overlay scanner hanya bisa ditutup lewat tombol ✕.
 
     window.addEventListener('touchstart', function wakeVibrate() {
       try { navigator.vibrate && navigator.vibrate(1); } catch (e) {}
