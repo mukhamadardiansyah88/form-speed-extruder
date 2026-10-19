@@ -589,6 +589,129 @@ select option { background: #0a0f23; color: var(--text-main); }
 }
 
 /* ============================================================
+   OVERLAY DAFTAR DATA
+   ============================================================ */
+.list-container {
+  max-height: 52vh;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding-right: 4px;
+}
+
+.list-container::-webkit-scrollbar { width: 6px; }
+.list-container::-webkit-scrollbar-track { background: rgba(0, 240, 255, 0.05); border-radius: 4px; }
+.list-container::-webkit-scrollbar-thumb { background: rgba(0, 240, 255, 0.45); border-radius: 4px; }
+
+.list-empty {
+  text-align: center;
+  color: var(--text-dim);
+  padding: 20px 10px;
+  letter-spacing: 1px;
+  font-weight: 600;
+}
+
+.data-card {
+  background: rgba(0, 20, 40, 0.7);
+  border: 1px solid rgba(0, 240, 255, 0.35);
+  border-radius: 10px;
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.12);
+}
+
+.data-card .card-info {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.data-card .card-field { display: flex; flex-direction: column; min-width: 90px; }
+
+.data-card .card-label {
+  font-size: 0.65rem;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--text-dim);
+  font-weight: 700;
+}
+
+.data-card .card-value {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fff;
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.4);
+  word-break: break-word;
+}
+
+.card-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.btn-edit, .btn-delete {
+  flex: 1;
+  padding: 8px 10px;
+  border-radius: 8px;
+  font-family: inherit;
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: all 0.2s;
+  border: 1px solid;
+}
+
+.btn-edit {
+  background: rgba(255, 215, 0, 0.15);
+  border-color: var(--neon-yellow);
+  color: #ffe98a;
+}
+.btn-edit:hover { box-shadow: 0 0 16px rgba(255, 215, 0, 0.6); transform: translateY(-1px); }
+
+.btn-delete {
+  background: rgba(255, 46, 99, 0.15);
+  border-color: var(--neon-red);
+  color: #ff9fb5;
+}
+.btn-delete:hover { box-shadow: 0 0 16px rgba(255, 46, 99, 0.7); transform: translateY(-1px); }
+
+.btn-add-row {
+  width: 100%;
+  font-size: 0.9rem;
+  padding: 12px;
+}
+
+/* ============================================================
+   OVERLAY KONFIRMASI HAPUS
+   ============================================================ */
+.modal-confirm { max-width: 380px; }
+
+.confirm-text {
+  font-size: 1rem;
+  font-weight: 600;
+  line-height: 1.5;
+  color: var(--text-main);
+  margin-bottom: 18px;
+  text-align: center;
+  letter-spacing: 0.5px;
+  word-break: break-word;
+}
+
+.btn-danger {
+  background: linear-gradient(135deg, rgba(255, 46, 99, 0.35), rgba(200, 20, 60, 0.35));
+  border-color: var(--neon-red);
+  color: #fff;
+}
+.btn-danger:hover:not(:disabled) { box-shadow: 0 0 20px rgba(255, 46, 99, 0.85); transform: translateY(-2px); }
+.btn-danger:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* ============================================================
    RESPONSIVE
    ============================================================ */
 @media (max-width: 640px) {
@@ -602,4 +725,5 @@ select option { background: #0a0f23; color: var(--text-main); }
   .scanner-modal { padding: 12px; }
   .footer-text { font-size: 0.7rem; letter-spacing: 1.5px; }
   .footer-line { max-width: 60px; }
+  .list-container { max-height: 48vh; }
 }
