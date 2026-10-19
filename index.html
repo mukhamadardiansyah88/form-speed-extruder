@@ -86,7 +86,7 @@
   </div>
 
   <!-- ============================================ -->
-  <!-- OVERLAY 1: INPUT SPK & SPEED                 -->
+  <!-- OVERLAY 1: INPUT / EDIT SPK & SPEED          -->
   <!-- ============================================ -->
   <div class="overlay" id="overlayInput">
     <div class="modal">
@@ -141,6 +141,49 @@
 
       <div class="scanner-status" id="scannerStatus">
         <span class="loading"></span> Menyiapkan kamera...
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- OVERLAY 3: DAFTAR DATA (per mesin)           -->
+  <!-- ============================================ -->
+  <div class="overlay" id="overlayList">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title" id="listTitle">Daftar Data</div>
+        <button class="close-btn" id="btnCloseList" type="button">✕</button>
+      </div>
+
+      <div class="list-container" id="listContainer">
+        <!-- kartu data di-generate app.js -->
+      </div>
+
+      <div class="modal-actions" style="margin-top:14px;">
+        <button class="btn btn-primary btn-add-row" id="btnTambahBaris" type="button">
+          + Tambah Baris Baru
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ============================================ -->
+  <!-- OVERLAY 4: KONFIRMASI HAPUS                  -->
+  <!-- ============================================ -->
+  <div class="overlay" id="overlayConfirm">
+    <div class="modal modal-confirm">
+      <div class="modal-header">
+        <div class="modal-title">Konfirmasi Hapus</div>
+        <button class="close-btn" id="btnCloseConfirm" type="button">✕</button>
+      </div>
+
+      <div class="confirm-text" id="confirmText">
+        Yakin hapus data ini?
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-secondary" id="btnCancelConfirm" type="button">Batal</button>
+        <button class="btn btn-danger" id="btnYesConfirm" type="button">Ya, Hapus</button>
       </div>
     </div>
   </div>
