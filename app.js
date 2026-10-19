@@ -1,16 +1,12 @@
 /* ============================================================
    APP — Logic Form Speed Extruder
    ============================================================
-   Arsitektur baru:
    - Sumber kebenaran data = GAS (getData per Tanggal+Shift).
    - Simpan per aksi: tambahData / editData / hapusData.
-   - Tombol "Simpan" global dipertahankan, tapi fungsinya
-     menyimpan baris yang masih pending di memory (batch),
-     memakai tambahData berurutan.
+   - Tombol Simpan global = batch untuk baris pending.
    - UI kaku: overlay tidak menutup saat klik luar / Escape.
-   - Beep sukses/gagal saat cari SPK (sukses: 4 nada sine naik;
-     gagal: 2 ketukan square turun, rapat).
-   - Indikator loading saat sync data.
+   - Beep sukses/gagal saat cari SPK.
+   - Loading sync = overlay full screen (neon).
    ============================================================ */
 
 (function () {
@@ -20,11 +16,7 @@
      ------------------------------------------------------------ */
   let daftarMesin = [];
   let kategoriMesin = {};
-
-  // hasilInput: map mesin -> array baris { id, noSPK, speed }
   let hasilInput = {};
-
-  // pendingInput: map mesin -> array baris { noSPK, speed }
   let pendingInput = {};
 
   let currentMesin = null;
@@ -34,21 +26,17 @@
   let toastTimer = null;
   let lookupSeq = 0;
 
-  // Mode form input: 'tambah' | 'edit'
   let formMode = 'tambah';
   let editId = null;
   let pendingEditIndex = null;
   let formOriginList = false;
 
-  // Konteks overlay list
   let listMesin = null;
 
-  // Konteks konfirmasi hapus
   let confirmId = null;
   let confirmMesin = null;
   let pendingDeleteIndex = null;
 
-  // Status sync
   let isSyncing = false;
 
   /* ------------------------------------------------------------
@@ -64,7 +52,6 @@
     if (type === 'error') t.classList.add('error');
     if (type === 'success') t.classList.add('success');
     t.classList.add('show');
-
     if (toastTimer) clearTimeout(toastTimer);
     toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2800);
   }
@@ -81,17 +68,11 @@
   }
 
   function getTanggalShift() {
-    return {
-      tanggal: $('tanggal').value,
-      shift: $('shift').value
-    };
+    return { tanggal: $('tanggal').value, shift: $('shift').value };
   }
 
   /* ------------------------------------------------------------
      BEEP (WebAudio)
-     ------------------------------------------------------------
-     Sukses: 4 nada sine naik (660→880→1100→1320), nyaring & tegas.
-     Gagal : 2 ketukan square turun (400→200), rapat (jeda ~230ms).
      ------------------------------------------------------------ */
   function playBeepSuccess() {
     try {
@@ -104,27 +85,21 @@
         { f: 1100, t: 0.12 },
         { f: 1320, t: 0.18 }
       ];
-
       notes.forEach(function (n) {
         const o = ctx.createOscillator();
         const g = ctx.createGain();
         o.type = 'sine';
         o.frequency.value = n.f;
-
         g.gain.setValueAtTime(0.0001, t0 + n.t);
         g.gain.exponentialRampToValueAtTime(0.55, t0 + n.t + 0.008);
         g.gain.exponentialRampToValueAtTime(0.0001, t0 + n.t + 0.11);
-
         o.connect(g);
         g.connect(ctx.destination);
         o.start(t0 + n.t);
         o.stop(t0 + n.t + 0.12);
       });
-
       setTimeout(function () { try { ctx.close(); } catch (e) {} }, 700);
-    } catch (e) {
-      console.warn('Beep sukses gagal:', e);
-    }
+    } catch (e) { console.warn('Beep sukses gagal:', e); }
   }
 
   function beepFailOnce() {
@@ -132,26 +107,20 @@
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       const ctx = new AudioCtx();
       const t0 = ctx.currentTime;
-
       const o = ctx.createOscillator();
       const g = ctx.createGain();
-
       o.type = 'square';
       o.frequency.setValueAtTime(400, t0);
       o.frequency.setValueAtTime(200, t0 + 0.09);
-
       g.gain.setValueAtTime(0.0001, t0);
       g.gain.exponentialRampToValueAtTime(0.8, t0 + 0.005);
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.18);
-
       o.connect(g);
       g.connect(ctx.destination);
       o.start(t0);
       o.stop(t0 + 0.19);
       o.onended = function () { try { ctx.close(); } catch (e) {} };
-    } catch (e) {
-      console.warn('Beep gagal gagal:', e);
-    }
+    } catch (e) { console.warn('Beep gagal gagal:', e); }
   }
 
   function playBeepFail() {
@@ -166,7 +135,6 @@
     return new Promise(function (resolve, reject) {
       const cbName = 'jsonp_cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
       const script = document.createElement('script');
-
       let done = false;
 
       function cleanup() {
@@ -176,15 +144,10 @@
         if (script && script.parentNode) script.parentNode.removeChild(script);
       }
 
-      window[cbName] = function (data) {
-        cleanup();
-        resolve(data);
-      };
+      window[cbName] = function (data) { cleanup(); resolve(data); };
 
       const qs = new URLSearchParams(params).toString();
-      const url = CONFIG.GAS_URL +
-        '?callback=' + encodeURIComponent(cbName) +
-        '&' + qs;
+      const url = CONFIG.GAS_URL + '?callback=' + encodeURIComponent(cbName) + '&' + qs;
 
       script.src = url;
       script.onerror = function () {
@@ -195,10 +158,7 @@
       document.body.appendChild(script);
 
       setTimeout(function () {
-        if (!done) {
-          cleanup();
-          reject(new Error('JSONP timeout'));
-        }
+        if (!done) { cleanup(); reject(new Error('JSONP timeout')); }
       }, 20000);
     });
   }
@@ -210,6 +170,7 @@
     initTanggal();
     initShift();
     initFooterTahun();
+    ensureSyncOverlay();
     bindEvents();
     loadDaftarMesin();
   });
@@ -232,6 +193,44 @@
   function initFooterTahun() {
     const el = $('footerTahun');
     if (el) el.textContent = new Date().getFullYear();
+  }
+
+  /* ------------------------------------------------------------
+     SYNC OVERLAY (full screen, dibuat via JS)
+     ------------------------------------------------------------ */
+  function ensureSyncOverlay() {
+    if ($('syncOverlay')) return;
+    const ov = document.createElement('div');
+    ov.id = 'syncOverlay';
+    ov.className = 'sync-overlay';
+    ov.innerHTML =
+      '<div class="sync-spinner">' +
+        '<div class="ring r1"></div>' +
+        '<div class="ring r2"></div>' +
+        '<div class="ring r3"></div>' +
+      '</div>' +
+      '<div class="sync-text">Memuat Data</div>';
+    document.body.appendChild(ov);
+  }
+
+  function showSyncLoading() {
+    isSyncing = true;
+    ensureSyncOverlay();
+    const ov = $('syncOverlay');
+    if (ov) ov.classList.add('active');
+
+    document.querySelectorAll('.mesin-btn').forEach(function (b) { b.disabled = true; });
+
+    const summary = $('summary');
+    if (summary) summary.textContent = 'Memuat data...';
+  }
+
+  function hideSyncLoading() {
+    isSyncing = false;
+    const ov = $('syncOverlay');
+    if (ov) ov.classList.remove('active');
+
+    document.querySelectorAll('.mesin-btn').forEach(function (b) { b.disabled = false; });
   }
 
   /* ------------------------------------------------------------
@@ -270,14 +269,12 @@
     const shift = $('shift');
     if (shift) shift.addEventListener('change', onKontrolChange);
 
-    // Overlay List
     const btnCloseList = $('btnCloseList');
     if (btnCloseList) btnCloseList.addEventListener('click', closeListOverlay);
 
     const btnTambahBaris = $('btnTambahBaris');
     if (btnTambahBaris) btnTambahBaris.addEventListener('click', onTambahBarisClick);
 
-    // Overlay Konfirmasi
     const btnCloseConfirm = $('btnCloseConfirm');
     if (btnCloseConfirm) btnCloseConfirm.addEventListener('click', closeConfirmOverlay);
 
@@ -287,7 +284,7 @@
     const btnYesConfirm = $('btnYesConfirm');
     if (btnYesConfirm) btnYesConfirm.addEventListener('click', onHapusConfirmed);
 
-    // UI KAKU: tidak ada listener klik-luar, tidak ada Escape.
+    // UI KAKU: tidak ada klik-luar, tidak ada Escape.
   }
 
   /* ------------------------------------------------------------
@@ -302,9 +299,7 @@
 
     callGAS({ action: 'getMesin' })
       .then(function (res) {
-        if (!res || !res.success) {
-          throw new Error((res && res.error) || 'Gagal memuat mesin.');
-        }
+        if (!res || !res.success) throw new Error((res && res.error) || 'Gagal memuat mesin.');
         daftarMesin = res.data || [];
         buildKategoriMap();
         renderMesin();
@@ -333,48 +328,7 @@
   }
 
   /* ------------------------------------------------------------
-     INDIKATOR LOADING SYNC
-     ------------------------------------------------------------ */
-  function showSyncLoading() {
-    isSyncing = true;
-
-    const container = $('mesinContainer');
-    if (container) {
-      container.classList.add('mesin-panel-loading');
-      let ov = container.querySelector('.mesin-loading-overlay');
-      if (!ov) {
-        ov = document.createElement('div');
-        ov.className = 'mesin-loading-overlay';
-        ov.innerHTML = '<span class="loading"></span> Memuat data...';
-        container.appendChild(ov);
-      }
-    }
-
-    document.querySelectorAll('.mesin-btn').forEach(function (b) {
-      b.disabled = true;
-    });
-
-    const summary = $('summary');
-    if (summary) summary.textContent = 'Memuat data...';
-  }
-
-  function hideSyncLoading() {
-    isSyncing = false;
-
-    const container = $('mesinContainer');
-    if (container) {
-      container.classList.remove('mesin-panel-loading');
-      const ov = container.querySelector('.mesin-loading-overlay');
-      if (ov && ov.parentNode) ov.parentNode.removeChild(ov);
-    }
-
-    document.querySelectorAll('.mesin-btn').forEach(function (b) {
-      b.disabled = false;
-    });
-  }
-
-  /* ------------------------------------------------------------
-     SYNC DATA (getData by Tanggal + Shift)
+     SYNC DATA
      ------------------------------------------------------------ */
   function syncData() {
     const ctx = getTanggalShift();
@@ -382,44 +336,34 @@
 
     showSyncLoading();
 
-    callGAS({
-      action: 'getData',
-      tanggal: ctx.tanggal,
-      shift: ctx.shift
-    })
-    .then(function (res) {
-      if (!res || !res.success) {
-        throw new Error((res && res.error) || 'Gagal memuat data.');
-      }
-      const data = res.data || [];
+    callGAS({ action: 'getData', tanggal: ctx.tanggal, shift: ctx.shift })
+      .then(function (res) {
+        if (!res || !res.success) throw new Error((res && res.error) || 'Gagal memuat data.');
+        const data = res.data || [];
 
-      hasilInput = {};
-      data.forEach(function (row) {
-        const mesin = String(row.mesin || '').trim();
-        if (!mesin) return;
-        if (!hasilInput[mesin]) hasilInput[mesin] = [];
-        hasilInput[mesin].push({
-          id: row.id,
-          noSPK: row.noSPK,
-          speed: row.speed
+        hasilInput = {};
+        data.forEach(function (row) {
+          const mesin = String(row.mesin || '').trim();
+          if (!mesin) return;
+          if (!hasilInput[mesin]) hasilInput[mesin] = [];
+          hasilInput[mesin].push({ id: row.id, noSPK: row.noSPK, speed: row.speed });
         });
+
+        hideSyncLoading();
+        refreshMesinButtons();
+        updateSummary();
+
+        const overlayList = $('overlayList');
+        if (overlayList && overlayList.classList.contains('active') && listMesin) {
+          renderList(listMesin);
+        }
+      })
+      .catch(function (err) {
+        hideSyncLoading();
+        const summary = $('summary');
+        if (summary) summary.textContent = 'Gagal memuat data.';
+        showToast('Gagal memuat data: ' + (err && err.message ? err.message : err), 'error');
       });
-
-      hideSyncLoading();
-      refreshMesinButtons();
-      updateSummary();
-
-      const overlayList = $('overlayList');
-      if (overlayList && overlayList.classList.contains('active') && listMesin) {
-        renderList(listMesin);
-      }
-    })
-    .catch(function (err) {
-      hideSyncLoading();
-      const summary = $('summary');
-      if (summary) summary.textContent = 'Gagal memuat data.';
-      showToast('Gagal memuat data: ' + (err && err.message ? err.message : err), 'error');
-    });
   }
 
   function onKontrolChange() {
@@ -478,14 +422,8 @@
       container.appendChild(section);
     });
 
-    if (!ada) {
-      container.innerHTML = '<div class="loading-wrap">Tidak ada mesin terdaftar.</div>';
-    }
-
-    if (isSyncing) {
-      showSyncLoading();
-    }
-
+    if (!ada) container.innerHTML = '<div class="loading-wrap">Tidak ada mesin terdaftar.</div>';
+    if (isSyncing) showSyncLoading();
     updateSummary();
   }
 
@@ -508,11 +446,8 @@
     const adaServer = hasilInput[namaMesin] && hasilInput[namaMesin].length > 0;
     const adaPending = pendingInput[namaMesin] && pendingInput[namaMesin].length > 0;
 
-    if (adaServer || adaPending) {
-      openListOverlay(namaMesin);
-    } else {
-      openInputOverlay(namaMesin, 'tambah', null, null, false);
-    }
+    if (adaServer || adaPending) openListOverlay(namaMesin);
+    else openInputOverlay(namaMesin, 'tambah', null, null, false);
   }
 
   /* ------------------------------------------------------------
@@ -521,12 +456,9 @@
   function openListOverlay(namaMesin) {
     listMesin = namaMesin;
     currentKategori = kategoriMesin[namaMesin] || 'LAIN';
-
     const title = $('listTitle');
     if (title) title.textContent = namaMesin + ' · ' + currentKategori;
-
     renderList(namaMesin);
-
     const overlay = $('overlayList');
     if (overlay) overlay.classList.add('active');
   }
@@ -550,13 +482,8 @@
       return;
     }
 
-    serverRows.forEach(function (row) {
-      container.appendChild(buildCard(row, false, null));
-    });
-
-    pendingRows.forEach(function (row, idx) {
-      container.appendChild(buildCard(row, true, idx));
-    });
+    serverRows.forEach(function (row) { container.appendChild(buildCard(row, false, null)); });
+    pendingRows.forEach(function (row, idx) { container.appendChild(buildCard(row, true, idx)); });
   }
 
   function buildCard(row, isPending, pendingIndex) {
@@ -586,8 +513,7 @@
     v2.textContent = row.speed || '—';
     f2.appendChild(l2); f2.appendChild(v2);
 
-    info.appendChild(f1);
-    info.appendChild(f2);
+    info.appendChild(f1); info.appendChild(f2);
     card.appendChild(info);
 
     if (isPending) {
@@ -606,11 +532,8 @@
     btnEdit.className = 'btn-edit';
     btnEdit.textContent = '✏️ Edit';
     btnEdit.addEventListener('click', function () {
-      if (isPending) {
-        openInputOverlay(listMesin, 'edit', null, pendingIndex, true);
-      } else {
-        openInputOverlay(listMesin, 'edit', row.id, null, true);
-      }
+      if (isPending) openInputOverlay(listMesin, 'edit', null, pendingIndex, true);
+      else openInputOverlay(listMesin, 'edit', row.id, null, true);
     });
 
     const btnDelete = document.createElement('button');
@@ -618,11 +541,8 @@
     btnDelete.className = 'btn-delete';
     btnDelete.textContent = '🗑️ Hapus';
     btnDelete.addEventListener('click', function () {
-      if (isPending) {
-        openConfirmOverlay(null, listMesin, pendingIndex);
-      } else {
-        openConfirmOverlay(row.id, listMesin, null);
-      }
+      if (isPending) openConfirmOverlay(null, listMesin, pendingIndex);
+      else openConfirmOverlay(row.id, listMesin, null);
     });
 
     actions.appendChild(btnEdit);
@@ -638,13 +558,10 @@
   }
 
   /* ------------------------------------------------------------
-     OVERLAY INPUT (TAMBAH / EDIT)
+     OVERLAY INPUT
      ------------------------------------------------------------ */
   function openInputOverlay(namaMesin, mode, id, pIndex, fromList) {
-    // Tutup overlay konfirmasi dulu supaya tidak tumpang tindih
     closeConfirmOverlay();
-
-    // Sembunyikan list sementara (biar tidak menumpuk di belakang input)
     const overlayList = $('overlayList');
     if (overlayList) overlayList.classList.remove('active');
 
@@ -684,15 +601,11 @@
     speedInput.value = initSpeed;
 
     resetSPKInfo();
-    if (initSPK) {
-      onSPKInputChange();
-    } else {
-      $('btnOk').disabled = true;
-    }
+    if (initSPK) onSPKInputChange();
+    else $('btnOk').disabled = true;
 
     const overlay = $('overlayInput');
     if (overlay) overlay.classList.add('active');
-
     setTimeout(function () { spkInput.focus(); }, 120);
   }
 
@@ -701,7 +614,6 @@
     if (overlay) overlay.classList.remove('active');
 
     const wasFromList = formOriginList;
-    const mesinAsal = currentMesin;
 
     currentMesin = null;
     currentKategori = null;
@@ -712,7 +624,6 @@
     formMode = 'tambah';
     formOriginList = false;
 
-    // Kalau asalnya dari list dan list masih punya mesin, buka lagi
     if (wasFromList && listMesin) {
       const overlayList = $('overlayList');
       if (overlayList) overlayList.classList.add('active');
@@ -742,7 +653,7 @@
   }
 
   /* ------------------------------------------------------------
-     SPK LOOKUP (filter angka 0-9)
+     SPK LOOKUP
      ------------------------------------------------------------ */
   function onSPKInputChange() {
     const el = $('spkInput');
@@ -767,57 +678,43 @@
     const kategori = currentKategori;
     const seq = ++lookupSeq;
 
-    callGAS({
-      action: 'cariSPK',
-      noSPK: noSPK,
-      kategori: kategori,
-      tahun: tahun
-    })
-    .then(function (res) {
-      if (seq !== lookupSeq) return;
-      handleLookupResult(res);
-    })
-    .catch(function (err) {
-      if (seq !== lookupSeq) return;
-      currentSPKData = null;
-      currentSPKValid = false;
-      setSPKInfo('Error: ' + (err && err.message ? err.message : err), 'error');
-      playBeepFail();
-      updateOkState();
-    });
+    callGAS({ action: 'cariSPK', noSPK: noSPK, kategori: kategori, tahun: tahun })
+      .then(function (res) {
+        if (seq !== lookupSeq) return;
+        handleLookupResult(res);
+      })
+      .catch(function (err) {
+        if (seq !== lookupSeq) return;
+        currentSPKData = null;
+        currentSPKValid = false;
+        setSPKInfo('Error: ' + (err && err.message ? err.message : err), 'error');
+        playBeepFail();
+        updateOkState();
+      });
   }
 
   function handleLookupResult(res) {
     if (!res || !res.success) {
-      currentSPKData = null;
-      currentSPKValid = false;
+      currentSPKData = null; currentSPKValid = false;
       setSPKInfo((res && res.error) || 'Gagal mencari SPK.', 'error');
-      playBeepFail();
-      updateOkState();
+      playBeepFail(); updateOkState();
       return;
     }
-
     if (!res.found) {
-      currentSPKData = null;
-      currentSPKValid = false;
+      currentSPKData = null; currentSPKValid = false;
       setSPKInfo(res.error || 'No SPK tidak ditemukan.', 'error');
-      playBeepFail();
-      updateOkState();
+      playBeepFail(); updateOkState();
       return;
     }
-
     if (!res.valid) {
-      currentSPKData = res.data || null;
-      currentSPKValid = false;
+      currentSPKData = res.data || null; currentSPKValid = false;
       setSPKInfo(res.error || 'Jenis plastik tidak cocok.', 'error');
-      playBeepFail();
-      updateOkState();
+      playBeepFail(); updateOkState();
       return;
     }
 
     currentSPKData = res.data;
     currentSPKValid = true;
-
     const teks = 'Order ' + res.data.jenisPlastik + ' ' + res.data.tebal + ' x ' + res.data.lebar;
     setSPKInfo(teks, 'success');
     playBeepSuccess();
@@ -830,22 +727,19 @@
   }
 
   /* ------------------------------------------------------------
-     SPEED (paksa koma)
+     SPEED
      ------------------------------------------------------------ */
   function onSpeedChange() {
     const el = $('speedInput');
     let v = el.value;
-
     v = v.replace(/\./g, ',');
     v = v.replace(/[^0-9,]/g, '');
-
     const firstComma = v.indexOf(',');
     if (firstComma !== -1) {
       const head = v.substring(0, firstComma + 1);
       const tail = v.substring(firstComma + 1).replace(/,/g, '');
       v = head + tail;
     }
-
     if (v !== el.value) el.value = v;
     updateOkState();
   }
@@ -868,7 +762,7 @@
   }
 
   /* ------------------------------------------------------------
-     OK (Tambah / Edit)
+     OK
      ------------------------------------------------------------ */
   function onOk() {
     if (!currentSPKValid || !currentSPKData || !currentMesin) return;
@@ -881,7 +775,6 @@
     const mode = formMode;
     const id = editId;
 
-    // Edit baris pending -> update lokal
     if (mode === 'edit' && pendingEditIndex !== null) {
       const rows = pendingInput[mesin] || [];
       if (rows[pendingEditIndex]) {
@@ -897,49 +790,39 @@
       return;
     }
 
-    // Edit baris server -> editData
     if (mode === 'edit' && id) {
       const btnOk = $('btnOk');
       btnOk.disabled = true;
-
-      callGAS({
-        action: 'editData',
-        id: id,
-        noSPK: noSPK,
-        speed: speed
-      })
-      .then(function (res) {
-        btnOk.disabled = false;
-        if (!res || !res.success) {
-          showToast('Gagal edit: ' + ((res && res.error) || 'unknown'), 'error');
-          return;
-        }
-        closeInputOverlay();
-        showToast('Baris diperbarui.', 'success');
-        syncData();
-      })
-      .catch(function (err) {
-        btnOk.disabled = false;
-        showToast('Gagal edit: ' + (err && err.message ? err.message : err), 'error');
-      });
+      callGAS({ action: 'editData', id: id, noSPK: noSPK, speed: speed })
+        .then(function (res) {
+          btnOk.disabled = false;
+          if (!res || !res.success) {
+            showToast('Gagal edit: ' + ((res && res.error) || 'unknown'), 'error');
+            return;
+          }
+          closeInputOverlay();
+          showToast('Baris diperbarui.', 'success');
+          syncData();
+        })
+        .catch(function (err) {
+          btnOk.disabled = false;
+          showToast('Gagal edit: ' + (err && err.message ? err.message : err), 'error');
+        });
       return;
     }
 
-    // Tambah -> pending
     if (!pendingInput[mesin]) pendingInput[mesin] = [];
     pendingInput[mesin].push({ noSPK: noSPK, speed: speed });
 
     closeInputOverlay();
     refreshMesinButtons();
     updateSummary();
-
     if (listMesin) renderList(listMesin);
-
     showToast('Baris ditambahkan. Tekan Simpan untuk mengirim.', 'success');
   }
 
   /* ------------------------------------------------------------
-     OVERLAY KONFIRMASI HAPUS
+     KONFIRMASI HAPUS
      ------------------------------------------------------------ */
   function openConfirmOverlay(id, mesin, pIndex) {
     confirmId = id || null;
@@ -948,11 +831,8 @@
 
     const txt = $('confirmText');
     if (txt) {
-      if (id) {
-        txt.textContent = 'Yakin hapus data ini? Tindakan tidak bisa dibatalkan.';
-      } else {
-        txt.textContent = 'Yakin hapus baris yang belum tersimpan ini?';
-      }
+      if (id) txt.textContent = 'Yakin hapus data ini? Tindakan tidak bisa dibatalkan.';
+      else txt.textContent = 'Yakin hapus baris yang belum tersimpan ini?';
     }
 
     const overlay = $('overlayConfirm');
@@ -975,7 +855,6 @@
     if (id) {
       const btnYes = $('btnYesConfirm');
       btnYes.disabled = true;
-
       callGAS({ action: 'hapusData', id: id })
         .then(function (res) {
           btnYes.disabled = false;
@@ -1009,41 +888,30 @@
   }
 
   /* ------------------------------------------------------------
-     SIMPAN (batch untuk baris pending)
+     SIMPAN (batch pending)
      ------------------------------------------------------------ */
   function onSimpan() {
     const ctx = getTanggalShift();
-    if (!ctx.tanggal) {
-      showToast('Tanggal belum diisi.', 'error');
-      return;
-    }
+    if (!ctx.tanggal) { showToast('Tanggal belum diisi.', 'error'); return; }
 
     const tasks = [];
     Object.keys(pendingInput).forEach(function (mesin) {
       const rows = pendingInput[mesin] || [];
       rows.forEach(function (r) {
         tasks.push({
-          tanggal: ctx.tanggal,
-          shift: ctx.shift,
-          mesin: mesin,
-          noSPK: r.noSPK,
-          speed: r.speed
+          tanggal: ctx.tanggal, shift: ctx.shift,
+          mesin: mesin, noSPK: r.noSPK, speed: r.speed
         });
       });
     });
 
-    if (tasks.length === 0) {
-      showToast('Belum ada baris baru untuk disimpan.', 'error');
-      return;
-    }
+    if (tasks.length === 0) { showToast('Belum ada baris baru untuk disimpan.', 'error'); return; }
 
     const btn = $('btnSimpan');
     btn.disabled = true;
     btn.textContent = '⏳ Menyimpan...';
 
-    let idx = 0;
-    let sukses = 0;
-    let gagal = 0;
+    let idx = 0, sukses = 0, gagal = 0;
 
     function next() {
       if (idx >= tasks.length) {
@@ -1055,23 +923,11 @@
         syncData();
         return;
       }
-
       const row = tasks[idx++];
-      callGAS({
-        action: 'tambahData',
-        row: JSON.stringify(row)
-      })
-      .then(function (res) {
-        if (res && res.success) sukses++;
-        else gagal++;
-        next();
-      })
-      .catch(function () {
-        gagal++;
-        next();
-      });
+      callGAS({ action: 'tambahData', row: JSON.stringify(row) })
+        .then(function (res) { if (res && res.success) sukses++; else gagal++; next(); })
+        .catch(function () { gagal++; next(); });
     }
-
     next();
   }
 
@@ -1083,21 +939,13 @@
     const btn = $('btnSimpan');
     if (!el || !btn) return;
 
-    if (isSyncing) {
-      el.textContent = 'Memuat data...';
-      btn.disabled = true;
-      return;
-    }
+    if (isSyncing) { el.textContent = 'Memuat data...'; btn.disabled = true; return; }
 
     let totalServer = 0;
-    Object.keys(hasilInput).forEach(function (m) {
-      totalServer += (hasilInput[m] || []).length;
-    });
+    Object.keys(hasilInput).forEach(function (m) { totalServer += (hasilInput[m] || []).length; });
 
     let totalPending = 0;
-    Object.keys(pendingInput).forEach(function (m) {
-      totalPending += (pendingInput[m] || []).length;
-    });
+    Object.keys(pendingInput).forEach(function (m) { totalPending += (pendingInput[m] || []).length; });
 
     const totalMesinServer = Object.keys(hasilInput).filter(function (m) {
       return (hasilInput[m] || []).length > 0;
