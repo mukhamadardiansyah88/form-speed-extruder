@@ -8,7 +8,8 @@
      menyimpan baris yang masih pending di memory (batch),
      memakai tambahData berurutan.
    - UI kaku: overlay tidak menutup saat klik luar / Escape.
-   - Beep sukses/gagal saat cari SPK.
+   - Beep sukses/gagal saat cari SPK (sukses: 4 nada sine naik;
+     gagal: 2 ketukan square turun, rapat).
    - Indikator loading saat sync data.
    ============================================================ */
 
@@ -24,7 +25,6 @@
   let hasilInput = {};
 
   // pendingInput: map mesin -> array baris { noSPK, speed }
-  // (belum dikirim ke server; disimpan via tombol Simpan batch)
   let pendingInput = {};
 
   let currentMesin = null;
@@ -38,6 +38,7 @@
   let formMode = 'tambah';
   let editId = null;
   let pendingEditIndex = null;
+  let formOriginList = false;
 
   // Konteks overlay list
   let listMesin = null;
@@ -87,56 +88,75 @@
   }
 
   /* ------------------------------------------------------------
-     BEEP (WebAudio) — sukses / gagal
+     BEEP (WebAudio)
+     ------------------------------------------------------------
+     Sukses: 4 nada sine naik (660→880→1100→1320), nyaring & tegas.
+     Gagal : 2 ketukan square turun (400→200), rapat (jeda ~230ms).
      ------------------------------------------------------------ */
   function playBeepSuccess() {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
+      const t0 = ctx.currentTime;
+      const notes = [
+        { f: 660,  t: 0 },
+        { f: 880,  t: 0.06 },
+        { f: 1100, t: 0.12 },
+        { f: 1320, t: 0.18 }
+      ];
 
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(1200, ctx.currentTime);
-      osc.frequency.setValueAtTime(1800, ctx.currentTime + 0.06);
+      notes.forEach(function (n) {
+        const o = ctx.createOscillator();
+        const g = ctx.createGain();
+        o.type = 'sine';
+        o.frequency.value = n.f;
 
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.9, ctx.currentTime + 0.005);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.28);
+        g.gain.setValueAtTime(0.0001, t0 + n.t);
+        g.gain.exponentialRampToValueAtTime(0.55, t0 + n.t + 0.008);
+        g.gain.exponentialRampToValueAtTime(0.0001, t0 + n.t + 0.11);
 
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.3);
-      osc.onended = () => ctx.close();
+        o.connect(g);
+        g.connect(ctx.destination);
+        o.start(t0 + n.t);
+        o.stop(t0 + n.t + 0.12);
+      });
+
+      setTimeout(function () { try { ctx.close(); } catch (e) {} }, 700);
     } catch (e) {
       console.warn('Beep sukses gagal:', e);
     }
   }
 
-  function playBeepFail() {
+  function beepFailOnce() {
     try {
       const AudioCtx = window.AudioContext || window.webkitAudioContext;
       const ctx = new AudioCtx();
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
+      const t0 = ctx.currentTime;
 
-      osc.type = 'square';
-      osc.frequency.setValueAtTime(400, ctx.currentTime);
-      osc.frequency.setValueAtTime(200, ctx.currentTime + 0.12);
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
 
-      gain.gain.setValueAtTime(0.0001, ctx.currentTime);
-      gain.gain.exponentialRampToValueAtTime(0.85, ctx.currentTime + 0.005);
-      gain.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + 0.35);
+      o.type = 'square';
+      o.frequency.setValueAtTime(400, t0);
+      o.frequency.setValueAtTime(200, t0 + 0.09);
 
-      osc.connect(gain);
-      gain.connect(ctx.destination);
-      osc.start();
-      osc.stop(ctx.currentTime + 0.4);
-      osc.onended = () => ctx.close();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.8, t0 + 0.005);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.18);
+
+      o.connect(g);
+      g.connect(ctx.destination);
+      o.start(t0);
+      o.stop(t0 + 0.19);
+      o.onended = function () { try { ctx.close(); } catch (e) {} };
     } catch (e) {
       console.warn('Beep gagal gagal:', e);
     }
+  }
+
+  function playBeepFail() {
+    beepFailOnce();
+    setTimeout(beepFailOnce, 230);
   }
 
   /* ------------------------------------------------------------
@@ -330,7 +350,6 @@
       }
     }
 
-    // Disable tombol mesin selama sync
     document.querySelectorAll('.mesin-btn').forEach(function (b) {
       b.disabled = true;
     });
@@ -390,7 +409,6 @@
       refreshMesinButtons();
       updateSummary();
 
-      // Kalau overlay list sedang terbuka untuk mesin ini, refresh isinya
       const overlayList = $('overlayList');
       if (overlayList && overlayList.classList.contains('active') && listMesin) {
         renderList(listMesin);
@@ -464,7 +482,6 @@
       container.innerHTML = '<div class="loading-wrap">Tidak ada mesin terdaftar.</div>';
     }
 
-    // Kalau sync sedang berjalan, pasang lagi overlay loading
     if (isSyncing) {
       showSyncLoading();
     }
@@ -486,7 +503,7 @@
      KLIK MESIN
      ------------------------------------------------------------ */
   function onMesinClick(namaMesin) {
-    if (isSyncing) return; // jangan buka saat data belum siap
+    if (isSyncing) return;
 
     const adaServer = hasilInput[namaMesin] && hasilInput[namaMesin].length > 0;
     const adaPending = pendingInput[namaMesin] && pendingInput[namaMesin].length > 0;
@@ -508,7 +525,6 @@
     const title = $('listTitle');
     if (title) title.textContent = namaMesin + ' · ' + currentKategori;
 
-    // Render konten dulu, baru tampilkan overlay (hindari kedip)
     renderList(namaMesin);
 
     const overlay = $('overlayList');
@@ -625,10 +641,10 @@
      OVERLAY INPUT (TAMBAH / EDIT)
      ------------------------------------------------------------ */
   function openInputOverlay(namaMesin, mode, id, pIndex, fromList) {
-    // Tutup overlay lain dulu (konfirmasi & list) supaya tidak tumpang tindih
+    // Tutup overlay konfirmasi dulu supaya tidak tumpang tindih
     closeConfirmOverlay();
-    // Jangan tutup list kalau memang dipanggil dari list (biar balik ke list setelah OK),
-    // tapi sembunyikan sementara supaya tidak menumpuk di belakang input.
+
+    // Sembunyikan list sementara (biar tidak menumpuk di belakang input)
     const overlayList = $('overlayList');
     if (overlayList) overlayList.classList.remove('active');
 
@@ -639,6 +655,7 @@
     currentKategori = kategoriMesin[namaMesin] || 'LAIN';
     currentSPKData = null;
     currentSPKValid = false;
+    formOriginList = !!fromList;
 
     const title = $('modalTitle');
     if (title) {
@@ -673,20 +690,19 @@
       $('btnOk').disabled = true;
     }
 
-    // Simpan flag asal-list agar setelah OK bisa balik ke list
-    formOriginList = !!fromList;
-
     const overlay = $('overlayInput');
     if (overlay) overlay.classList.add('active');
 
     setTimeout(function () { spkInput.focus(); }, 120);
   }
 
-  let formOriginList = false;
-
-  function closeInputOverlay(keepList) {
+  function closeInputOverlay() {
     const overlay = $('overlayInput');
     if (overlay) overlay.classList.remove('active');
+
+    const wasFromList = formOriginList;
+    const mesinAsal = currentMesin;
+
     currentMesin = null;
     currentKategori = null;
     currentSPKData = null;
@@ -694,14 +710,14 @@
     editId = null;
     pendingEditIndex = null;
     formMode = 'tambah';
+    formOriginList = false;
 
-    // Kalau asalnya dari list dan list belum ditutup, buka lagi
-    if (!keepList && formOriginList && listMesin) {
+    // Kalau asalnya dari list dan list masih punya mesin, buka lagi
+    if (wasFromList && listMesin) {
       const overlayList = $('overlayList');
       if (overlayList) overlayList.classList.add('active');
       renderList(listMesin);
     }
-    formOriginList = false;
   }
 
   /* ------------------------------------------------------------
