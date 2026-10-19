@@ -560,29 +560,82 @@ select option { background: #0a0f23; color: var(--text-main); }
 }
 
 /* ============================================================
-   LOADING SYNC DI PANEL MESIN
+   SYNC OVERLAY (FULL SCREEN)
    ============================================================ */
-.mesin-panel-loading { position: relative; }
-
-.mesin-loading-overlay {
-  position: absolute;
+.sync-overlay {
+  position: fixed;
   inset: 0;
-  display: flex;
+  z-index: 3500;
+  display: none;
   align-items: center;
   justify-content: center;
-  gap: 8px;
-  background: rgba(5, 6, 15, 0.72);
-  backdrop-filter: blur(2px);
-  -webkit-backdrop-filter: blur(2px);
-  border-radius: 14px;
-  color: var(--neon-cyan);
-  font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  font-size: 0.85rem;
-  z-index: 5;
+  flex-direction: column;
+  gap: 22px;
+  background: rgba(5, 6, 15, 0.82);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   pointer-events: all;
-  text-shadow: 0 0 10px rgba(0, 240, 255, 0.6);
+}
+.sync-overlay.active { display: flex; animation: syncFadeIn 0.25s ease; }
+
+@keyframes syncFadeIn { from { opacity: 0; } to { opacity: 1; } }
+
+.sync-spinner {
+  position: relative;
+  width: 96px;
+  height: 96px;
+}
+
+.sync-spinner .ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 3px solid transparent;
+  animation: syncSpin 1.2s linear infinite;
+}
+
+.sync-spinner .ring.r1 {
+  border-top-color: var(--neon-cyan);
+  border-right-color: var(--neon-cyan);
+  box-shadow: 0 0 18px var(--neon-cyan), inset 0 0 18px rgba(0, 240, 255, 0.35);
+  animation-duration: 1.1s;
+}
+.sync-spinner .ring.r2 {
+  inset: 10px;
+  border-bottom-color: var(--neon-pink);
+  border-left-color: var(--neon-pink);
+  box-shadow: 0 0 18px var(--neon-pink), inset 0 0 18px rgba(255, 0, 224, 0.35);
+  animation-duration: 1.6s;
+  animation-direction: reverse;
+}
+.sync-spinner .ring.r3 {
+  inset: 20px;
+  border-top-color: var(--neon-green);
+  border-left-color: var(--neon-green);
+  box-shadow: 0 0 18px var(--neon-green), inset 0 0 18px rgba(57, 255, 20, 0.35);
+  animation-duration: 2.1s;
+}
+
+@keyframes syncSpin { to { transform: rotate(360deg); } }
+
+.sync-text {
+  font-family: 'Rajdhani', system-ui, sans-serif;
+  font-size: 0.95rem;
+  font-weight: 700;
+  letter-spacing: 3px;
+  text-transform: uppercase;
+  background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink), var(--neon-green), var(--neon-cyan));
+  background-size: 200% auto;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  animation: syncTextShine 2.4s linear infinite;
+  text-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
+}
+
+@keyframes syncTextShine {
+  0%   { background-position: 0% center; }
+  100% { background-position: 200% center; }
 }
 
 /* ============================================================
