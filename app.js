@@ -2,8 +2,9 @@
    APP — Logic Form Speed Extruder
    ============================================================
    - Sumber kebenaran data = GAS (getData per Tanggal+Shift).
-   - Simpan per aksi: tambahData / editData / hapusData.
-   - Tombol Simpan global = batch untuk baris pending.
+   - Simpan per aksi: tambahBanyak / editData / hapusData.
+   - Tombol Simpan global = batch pending, dikirim SATU request
+     (tambahBanyak) supaya cepat & tidak panas.
    - UI kaku: overlay tidak menutup saat klik luar / Escape.
    - Beep sukses/gagal saat cari SPK.
    - Loading sync = overlay full screen (neon).
@@ -129,37 +130,60 @@
   }
 
   /* ------------------------------------------------------------
-     JSONP CALL KE GAS
+     JSONP CALL KE GAS (dengan cleanup bersih)
      ------------------------------------------------------------ */
   function callGAS(params) {
     return new Promise(function (resolve, reject) {
       const cbName = 'jsonp_cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000);
       const script = document.createElement('script');
+
       let done = false;
+      let timeoutId = null;
 
       function cleanup() {
         if (done) return;
         done = true;
+        if (timeoutId) { clearTimeout(timeoutId); timeoutId = null; }
         try { delete window[cbName]; } catch (e) { window[cbName] = undefined; }
-        if (script && script.parentNode) script.parentNode.removeChild(script);
+        if (script) {
+          script.onload = null;
+          script.onerror = null;
+          if (script.parentNode) script.parentNode.removeChild(script);
+        }
       }
 
-      window[cbName] = function (data) { cleanup(); resolve(data); };
+      window[cbName] = function (data) {
+        cleanup();
+        resolve(data);
+      };
 
       const qs = new URLSearchParams(params).toString();
-      const url = CONFIG.GAS_URL + '?callback=' + encodeURIComponent(cbName) + '&' + qs;
+      const url = CONFIG.GAS_URL +
+        '?callback=' + encodeURIComponent(cbName) +
+        '&' + qs;
 
       script.src = url;
       script.onerror = function () {
         cleanup();
         reject(new Error('JSONP gagal — cek koneksi atau URL GAS'));
       };
+      script.onload = function () {
+        // Kalau script selesai dieksekusi tapi callback tidak terpanggil,
+        // berarti response bukan JSONP valid. Bersihkan.
+        if (!done) {
+          cleanup();
+          reject(new Error('Response GAS tidak memanggil callback'));
+        }
+      };
 
       document.body.appendChild(script);
 
-      setTimeout(function () {
-        if (!done) { cleanup(); reject(new Error('JSONP timeout')); }
-      }, 20000);
+      timeoutId = setTimeout(function () {
+        if (!done) {
+          cleanup();
+          reject(new Error('JSONP timeout'));
+        }
+      }, 12000);
     });
   }
 
@@ -218,9 +242,7 @@
     ensureSyncOverlay();
     const ov = $('syncOverlay');
     if (ov) ov.classList.add('active');
-
     document.querySelectorAll('.mesin-btn').forEach(function (b) { b.disabled = true; });
-
     const summary = $('summary');
     if (summary) summary.textContent = 'Memuat data...';
   }
@@ -229,7 +251,6 @@
     isSyncing = false;
     const ov = $('syncOverlay');
     if (ov) ov.classList.remove('active');
-
     document.querySelectorAll('.mesin-btn').forEach(function (b) { b.disabled = false; });
   }
 
@@ -888,47 +909,56 @@
   }
 
   /* ------------------------------------------------------------
-     SIMPAN (batch pending)
+     SIMPAN (batch pending) — SATU request tambahBanyak
      ------------------------------------------------------------ */
   function onSimpan() {
     const ctx = getTanggalShift();
     if (!ctx.tanggal) { showToast('Tanggal belum diisi.', 'error'); return; }
 
-    const tasks = [];
+    const rows = [];
     Object.keys(pendingInput).forEach(function (mesin) {
-      const rows = pendingInput[mesin] || [];
-      rows.forEach(function (r) {
-        tasks.push({
-          tanggal: ctx.tanggal, shift: ctx.shift,
-          mesin: mesin, noSPK: r.noSPK, speed: r.speed
+      const list = pendingInput[mesin] || [];
+      list.forEach(function (r) {
+        rows.push({
+          tanggal: ctx.tanggal,
+          shift: ctx.shift,
+          mesin: mesin,
+          noSPK: r.noSPK,
+          speed: r.speed
         });
       });
     });
 
-    if (tasks.length === 0) { showToast('Belum ada baris baru untuk disimpan.', 'error'); return; }
+    if (rows.length === 0) { showToast('Belum ada baris baru untuk disimpan.', 'error'); return; }
 
     const btn = $('btnSimpan');
     btn.disabled = true;
     btn.textContent = '⏳ Menyimpan...';
 
-    let idx = 0, sukses = 0, gagal = 0;
+    callGAS({
+      action: 'tambahBanyak',
+      rows: JSON.stringify(rows)
+    })
+    .then(function (res) {
+      btn.disabled = false;
+      btn.textContent = '💾 Simpan ke Sheet Inputan';
 
-    function next() {
-      if (idx >= tasks.length) {
-        btn.disabled = false;
-        btn.textContent = '💾 Simpan ke Sheet Inputan';
-        pendingInput = {};
-        updateSummary();
-        showToast('Selesai. Sukses: ' + sukses + ', gagal: ' + gagal, gagal > 0 ? 'error' : 'success');
-        syncData();
+      if (!res || !res.success) {
+        showToast('Gagal simpan: ' + ((res && res.error) || 'unknown'), 'error');
         return;
       }
-      const row = tasks[idx++];
-      callGAS({ action: 'tambahData', row: JSON.stringify(row) })
-        .then(function (res) { if (res && res.success) sukses++; else gagal++; next(); })
-        .catch(function () { gagal++; next(); });
-    }
-    next();
+
+      const jumlah = res.jumlah != null ? res.jumlah : rows.length;
+      pendingInput = {};
+      updateSummary();
+      showToast('Berhasil disimpan: ' + jumlah + ' baris.', 'success');
+      syncData();
+    })
+    .catch(function (err) {
+      btn.disabled = false;
+      btn.textContent = '💾 Simpan ke Sheet Inputan';
+      showToast('Gagal simpan: ' + (err && err.message ? err.message : err), 'error');
+    });
   }
 
   /* ------------------------------------------------------------
