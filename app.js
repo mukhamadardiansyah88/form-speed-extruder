@@ -8,6 +8,7 @@
    - Beep sukses/gagal saat cari SPK.
    - Loading sync = overlay full screen (neon).
    - Rangkuman mesin aktif per jenis (PP/PE/HD) + total.
+   - Debounce cariSPK (400ms) untuk mengurangi request.
    ============================================================ */
 
 (function () {
@@ -26,6 +27,7 @@
   let currentSPKValid = false;
   let toastTimer = null;
   let lookupSeq = 0;
+  let lookupDebounceTimer = null;
 
   let formMode = 'tambah';
   let editId = null;
@@ -42,6 +44,10 @@
 
   // Cache angka rangkuman terakhir (untuk animasi pop)
   let lastRangkuman = { pp: -1, pe: -1, hd: -1, total: -1 };
+
+  // Cache ringan untuk mengurangi render ganda
+  let lastSummaryText = '';
+  let lastMesinHash = '';
 
   /* ------------------------------------------------------------
      UTIL
@@ -245,7 +251,7 @@
     if (ov) ov.classList.add('active');
     document.querySelectorAll('.mesin-btn').forEach(function (b) { b.disabled = true; });
     const summary = $('summary');
-    if (summary) summary.textContent = 'Memuat data...';
+    if (summary) { summary.textContent = 'Memuat data...'; lastSummaryText = summary.textContent; }
   }
 
   function hideSyncLoading() {
@@ -275,7 +281,7 @@
     if (spkInput) {
       spkInput.addEventListener('input', onSPKInputChange);
       spkInput.addEventListener('keydown', function (e) {
-        if (e.key === 'Enter') { e.preventDefault(); onSPKInputChange(); }
+        if (e.key === 'Enter') { e.preventDefault(); flushSPKLookup(); }
       });
     }
 
@@ -373,6 +379,7 @@
         refreshMesinButtons();
         updateSummary();
 
+        // Render list hanya kalau overlay list terbuka
         const overlayList = $('overlayList');
         if (overlayList && overlayList.classList.contains('active') && listMesin) {
           renderList(listMesin);
@@ -381,9 +388,9 @@
       .catch(function (err) {
         hideSyncLoading();
         const summary = $('summary');
-        if (summary) summary.textContent = 'Gagal memuat data.';
+        if (summary) { summary.textContent = 'Gagal memuat data.'; lastSummaryText = summary.textContent; }
         showToast('Gagal memuat data: ' + (err && err.message ? err.message : err), 'error');
-        updateRangkuman(); // tetap tampilkan (mungkin 0)
+        updateRangkuman();
       });
   }
 
@@ -622,7 +629,7 @@
     speedInput.value = initSpeed;
 
     resetSPKInfo();
-    if (initSPK) onSPKInputChange();
+    if (initSPK) onSPKInputChange(true);
     else $('btnOk').disabled = true;
 
     const overlay = $('overlayInput');
@@ -644,6 +651,8 @@
     pendingEditIndex = null;
     formMode = 'tambah';
     formOriginList = false;
+
+    if (lookupDebounceTimer) { clearTimeout(lookupDebounceTimer); lookupDebounceTimer = null; }
 
     if (wasFromList && listMesin) {
       const overlayList = $('overlayList');
@@ -674,9 +683,9 @@
   }
 
   /* ------------------------------------------------------------
-     SPK LOOKUP
+     SPK LOOKUP (debounce 400ms)
      ------------------------------------------------------------ */
-  function onSPKInputChange() {
+  function onSPKInputChange(immediate) {
     const el = $('spkInput');
 
     const before = el.value;
@@ -685,6 +694,7 @@
 
     const noSPK = after.trim();
     if (noSPK === '') {
+      if (lookupDebounceTimer) { clearTimeout(lookupDebounceTimer); lookupDebounceTimer = null; }
       resetSPKInfo();
       currentSPKData = null;
       currentSPKValid = false;
@@ -695,6 +705,27 @@
     setSPKInfo('Mencari No SPK ' + noSPK + ' ...', '');
     $('btnOk').disabled = true;
 
+    if (lookupDebounceTimer) { clearTimeout(lookupDebounceTimer); lookupDebounceTimer = null; }
+
+    if (immediate) {
+      runSPKLookup(noSPK);
+      return;
+    }
+
+    lookupDebounceTimer = setTimeout(function () {
+      lookupDebounceTimer = null;
+      runSPKLookup(noSPK);
+    }, 400);
+  }
+
+  function flushSPKLookup() {
+    if (lookupDebounceTimer) { clearTimeout(lookupDebounceTimer); lookupDebounceTimer = null; }
+    const el = $('spkInput');
+    const noSPK = (el.value || '').replace(/[^0-9]/g, '').trim();
+    if (noSPK !== '') runSPKLookup(noSPK);
+  }
+
+  function runSPKLookup(noSPK) {
     const tahun = getTahunDariTanggal();
     const kategori = currentKategori;
     const seq = ++lookupSeq;
@@ -775,7 +806,7 @@
         if (el) {
           el.value = barcode;
           el.dispatchEvent(new Event('input', { bubbles: true }));
-          onSPKInputChange();
+          onSPKInputChange(true); // scan -> langsung lookup
         }
       },
       function () { /* closed tanpa scan */ }
@@ -962,10 +993,10 @@
   }
 
   /* ------------------------------------------------------------
-     RANGKUMAN MESIN AKTIF (server + pending)
+     RANGKUMAN MESIN AKTIF
      ------------------------------------------------------------ */
   function hitungRangkuman() {
-    const aktif = {}; // nama mesin -> true
+    const aktif = {};
 
     Object.keys(hasilInput).forEach(function (mesin) {
       if ((hasilInput[mesin] || []).length > 0) aktif[mesin] = true;
@@ -989,10 +1020,11 @@
     const el = $(idEl);
     if (!el) return;
     const lama = lastRangkuman[key];
+    if (String(el.textContent) === String(nilai)) { lastRangkuman[key] = nilai; return; }
     el.textContent = nilai;
     if (lama !== -1 && lama !== nilai) {
       el.classList.remove('pop');
-      void el.offsetWidth; // reflow agar animasi bisa ulang
+      void el.offsetWidth;
       el.classList.add('pop');
     }
     lastRangkuman[key] = nilai;
@@ -1017,7 +1049,12 @@
     // Rangkuman mesin selalu ikut di-update
     updateRangkuman();
 
-    if (isSyncing) { el.textContent = 'Memuat data...'; btn.disabled = true; return; }
+    if (isSyncing) {
+      const txt = 'Memuat data...';
+      if (lastSummaryText !== txt) { el.textContent = txt; lastSummaryText = txt; }
+      btn.disabled = true;
+      return;
+    }
 
     let totalServer = 0;
     Object.keys(hasilInput).forEach(function (m) { totalServer += (hasilInput[m] || []).length; });
@@ -1029,15 +1066,17 @@
       return (hasilInput[m] || []).length > 0;
     }).length;
 
+    let txt;
     if (totalServer === 0 && totalPending === 0) {
-      el.textContent = 'Belum ada data untuk tanggal & shift ini.';
+      txt = 'Belum ada data untuk tanggal & shift ini.';
       btn.disabled = true;
     } else {
-      let txt = totalServer + ' baris · ' + totalMesinServer + ' mesin tersimpan';
+      txt = totalServer + ' baris · ' + totalMesinServer + ' mesin tersimpan';
       if (totalPending > 0) txt += ' · ' + totalPending + ' baris baru belum disimpan';
-      el.textContent = txt;
       btn.disabled = (totalPending === 0);
     }
+
+    if (lastSummaryText !== txt) { el.textContent = txt; lastSummaryText = txt; }
   }
 
 })();
