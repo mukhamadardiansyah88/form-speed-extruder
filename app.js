@@ -3,11 +3,11 @@
    ============================================================
    - Sumber kebenaran data = GAS (getData per Tanggal+Shift).
    - Simpan per aksi: tambahBanyak / editData / hapusData.
-   - Tombol Simpan global = batch pending, dikirim SATU request
-     (tambahBanyak) supaya cepat & tidak panas.
+   - Tombol Simpan global = batch pending, 1 request (tambahBanyak).
    - UI kaku: overlay tidak menutup saat klik luar / Escape.
    - Beep sukses/gagal saat cari SPK.
    - Loading sync = overlay full screen (neon).
+   - Rangkuman mesin aktif per jenis (PP/PE/HD) + total.
    ============================================================ */
 
 (function () {
@@ -39,6 +39,9 @@
   let pendingDeleteIndex = null;
 
   let isSyncing = false;
+
+  // Cache angka rangkuman terakhir (untuk animasi pop)
+  let lastRangkuman = { pp: -1, pe: -1, hd: -1, total: -1 };
 
   /* ------------------------------------------------------------
      UTIL
@@ -130,7 +133,7 @@
   }
 
   /* ------------------------------------------------------------
-     JSONP CALL KE GAS (dengan cleanup bersih)
+     JSONP CALL KE GAS
      ------------------------------------------------------------ */
   function callGAS(params) {
     return new Promise(function (resolve, reject) {
@@ -168,8 +171,6 @@
         reject(new Error('JSONP gagal — cek koneksi atau URL GAS'));
       };
       script.onload = function () {
-        // Kalau script selesai dieksekusi tapi callback tidak terpanggil,
-        // berarti response bukan JSONP valid. Bersihkan.
         if (!done) {
           cleanup();
           reject(new Error('Response GAS tidak memanggil callback'));
@@ -220,7 +221,7 @@
   }
 
   /* ------------------------------------------------------------
-     SYNC OVERLAY (full screen, dibuat via JS)
+     SYNC OVERLAY
      ------------------------------------------------------------ */
   function ensureSyncOverlay() {
     if ($('syncOverlay')) return;
@@ -304,8 +305,6 @@
 
     const btnYesConfirm = $('btnYesConfirm');
     if (btnYesConfirm) btnYesConfirm.addEventListener('click', onHapusConfirmed);
-
-    // UI KAKU: tidak ada klik-luar, tidak ada Escape.
   }
 
   /* ------------------------------------------------------------
@@ -384,6 +383,7 @@
         const summary = $('summary');
         if (summary) summary.textContent = 'Gagal memuat data.';
         showToast('Gagal memuat data: ' + (err && err.message ? err.message : err), 'error');
+        updateRangkuman(); // tetap tampilkan (mungkin 0)
       });
   }
 
@@ -962,12 +962,60 @@
   }
 
   /* ------------------------------------------------------------
+     RANGKUMAN MESIN AKTIF (server + pending)
+     ------------------------------------------------------------ */
+  function hitungRangkuman() {
+    const aktif = {}; // nama mesin -> true
+
+    Object.keys(hasilInput).forEach(function (mesin) {
+      if ((hasilInput[mesin] || []).length > 0) aktif[mesin] = true;
+    });
+    Object.keys(pendingInput).forEach(function (mesin) {
+      if ((pendingInput[mesin] || []).length > 0) aktif[mesin] = true;
+    });
+
+    let pp = 0, pe = 0, hd = 0;
+    Object.keys(aktif).forEach(function (mesin) {
+      const kat = kategoriMesin[mesin] || 'LAIN';
+      if (kat === 'PP') pp++;
+      else if (kat === 'PE') pe++;
+      else if (kat === 'HD') hd++;
+    });
+
+    return { pp: pp, pe: pe, hd: hd, total: pp + pe + hd };
+  }
+
+  function setAngkaRangkuman(idEl, nilai, key) {
+    const el = $(idEl);
+    if (!el) return;
+    const lama = lastRangkuman[key];
+    el.textContent = nilai;
+    if (lama !== -1 && lama !== nilai) {
+      el.classList.remove('pop');
+      void el.offsetWidth; // reflow agar animasi bisa ulang
+      el.classList.add('pop');
+    }
+    lastRangkuman[key] = nilai;
+  }
+
+  function updateRangkuman() {
+    const r = hitungRangkuman();
+    setAngkaRangkuman('rPP', r.pp, 'pp');
+    setAngkaRangkuman('rPE', r.pe, 'pe');
+    setAngkaRangkuman('rHD', r.hd, 'hd');
+    setAngkaRangkuman('rTotal', r.total, 'total');
+  }
+
+  /* ------------------------------------------------------------
      SUMMARY
      ------------------------------------------------------------ */
   function updateSummary() {
     const el = $('summary');
     const btn = $('btnSimpan');
     if (!el || !btn) return;
+
+    // Rangkuman mesin selalu ikut di-update
+    updateRangkuman();
 
     if (isSyncing) { el.textContent = 'Memuat data...'; btn.disabled = true; return; }
 
