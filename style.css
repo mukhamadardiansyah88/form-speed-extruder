@@ -75,12 +75,13 @@ body {
 
 .orb {
   position: fixed; border-radius: 50%;
-  filter: blur(90px); opacity: 0.35;
+  filter: blur(60px); opacity: 0.28;
   z-index: -1; pointer-events: none;
+  will-change: transform;
 }
-.orb1 { width: 320px; height: 320px; background: var(--neon-cyan);   top: 8%;  left: 4%;  animation: float1 16s ease-in-out infinite; }
-.orb2 { width: 260px; height: 260px; background: var(--neon-pink);   bottom: 8%; right: 4%; animation: float2 19s ease-in-out infinite; }
-.orb3 { width: 220px; height: 220px; background: var(--neon-purple); top: 55%; left: 50%; animation: float3 22s ease-in-out infinite; }
+.orb1 { width: 280px; height: 280px; background: var(--neon-cyan);   top: 8%;  left: 4%;  animation: float1 16s ease-in-out infinite; }
+.orb2 { width: 220px; height: 220px; background: var(--neon-pink);   bottom: 8%; right: 4%; animation: float2 19s ease-in-out infinite; }
+.orb3 { width: 200px; height: 200px; background: var(--neon-purple); top: 55%; left: 50%; animation: float3 22s ease-in-out infinite; }
 
 @keyframes float1 {
   0%, 100% { transform: translate(0, 0) scale(1); }
@@ -560,108 +561,6 @@ select option { background: #0a0f23; color: var(--text-main); }
 }
 
 /* ============================================================
-   RANGKUMAN MESIN AKTIF
-   ============================================================ */
-.rangkuman {
-  margin-top: 16px;
-  padding: 14px 16px;
-  border: 1px solid rgba(0, 240, 255, 0.35);
-  border-radius: 12px;
-  background: rgba(0, 20, 40, 0.55);
-  box-shadow: 0 0 18px rgba(0, 240, 255, 0.12), inset 0 0 18px rgba(0, 240, 255, 0.05);
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  position: relative;
-}
-
-.rangkuman::before {
-  content: '';
-  position: absolute;
-  top: 0; left: -100%;
-  width: 100%; height: 2px;
-  background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
-  animation: borderScan 5s linear infinite;
-}
-
-.rangkuman-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-family: 'Rajdhani', system-ui, sans-serif;
-  font-weight: 700;
-  letter-spacing: 2px;
-  text-transform: uppercase;
-  font-size: 0.95rem;
-}
-
-.rangkuman-row .r-label { font-size: 1rem; }
-.rangkuman-row .r-value { font-size: 1rem; }
-
-/* Warna kategori (konsisten dengan kategori mesin) */
-.rangkuman-row.r-p .r-label,
-.rangkuman-row.r-p .r-value {
-  color: var(--neon-green);
-  text-shadow: 0 0 8px rgba(57, 255, 20, 0.6);
-}
-.rangkuman-row.r-e .r-label,
-.rangkuman-row.r-e .r-value {
-  color: var(--neon-cyan);
-  text-shadow: 0 0 8px rgba(0, 240, 255, 0.6);
-}
-.rangkuman-row.r-h .r-label,
-.rangkuman-row.r-h .r-value {
-  color: var(--neon-pink);
-  text-shadow: 0 0 8px rgba(255, 0, 224, 0.6);
-}
-
-/* Garis penjumlahan manual */
-.rangkuman-line {
-  height: 2px;
-  background: linear-gradient(90deg, transparent, var(--neon-cyan), var(--neon-pink), var(--neon-cyan), transparent);
-  box-shadow: 0 0 10px rgba(0, 240, 255, 0.7);
-  border-radius: 2px;
-  margin: 6px 0 4px;
-  position: relative;
-}
-
-/* Tanda + di ujung kanan garis */
-.rangkuman-line::after {
-  content: '+';
-  position: absolute;
-  right: -2px;
-  top: -14px;
-  font-size: 1.1rem;
-  font-weight: 700;
-  color: var(--neon-cyan);
-  text-shadow: 0 0 10px var(--neon-cyan);
-}
-
-/* Total */
-.rangkuman-row.r-total {
-  font-size: 1.05rem;
-}
-.rangkuman-row.r-total .r-label,
-.rangkuman-row.r-total .r-value {
-  color: #fff;
-  text-shadow: 0 0 10px rgba(0, 240, 255, 0.7), 0 0 20px rgba(255, 0, 224, 0.35);
-}
-
-/* Angka berubah: animasi pop kecil */
-.rangkuman-row .r-value span {
-  display: inline-block;
-  transition: transform 0.2s ease;
-}
-.rangkuman-row .r-value span.pop {
-  animation: rPop 0.3s ease;
-}
-@keyframes rPop {
-  0%   { transform: scale(0.7); }
-  60%  { transform: scale(1.15); }
-  100% { transform: scale(1); }
-}
-
-/* ============================================================
    FOOTER CREDIT
    ============================================================ */
 .footer-credit {
@@ -814,6 +713,83 @@ select option { background: #0a0f23; color: var(--text-main); }
 .btn-danger:disabled { opacity: 0.35; cursor: not-allowed; }
 
 /* ============================================================
+   RANGKUMAN MESIN AKTIF (panel sendiri)
+   ============================================================ */
+.rangkuman {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.rangkuman-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-family: 'Rajdhani', system-ui, sans-serif;
+  font-weight: 700;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  font-size: 0.95rem;
+}
+
+.rangkuman-row .r-label { font-size: 1rem; }
+.rangkuman-row .r-value { font-size: 1rem; }
+
+.rangkuman-row.r-p .r-label,
+.rangkuman-row.r-p .r-value {
+  color: var(--neon-green);
+  text-shadow: 0 0 8px rgba(57, 255, 20, 0.6);
+}
+.rangkuman-row.r-e .r-label,
+.rangkuman-row.r-e .r-value {
+  color: var(--neon-cyan);
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.6);
+}
+.rangkuman-row.r-h .r-label,
+.rangkuman-row.r-h .r-value {
+  color: var(--neon-pink);
+  text-shadow: 0 0 8px rgba(255, 0, 224, 0.6);
+}
+
+.rangkuman-line {
+  height: 2px;
+  background: linear-gradient(90deg, transparent, var(--neon-cyan), var(--neon-pink), var(--neon-cyan), transparent);
+  box-shadow: 0 0 10px rgba(0, 240, 255, 0.7);
+  border-radius: 2px;
+  margin: 6px 0 4px;
+  position: relative;
+}
+
+.rangkuman-line::after {
+  content: '+';
+  position: absolute;
+  right: -2px;
+  top: -14px;
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--neon-cyan);
+  text-shadow: 0 0 10px var(--neon-cyan);
+}
+
+.rangkuman-row.r-total { font-size: 1.05rem; }
+.rangkuman-row.r-total .r-label,
+.rangkuman-row.r-total .r-value {
+  color: #fff;
+  text-shadow: 0 0 10px rgba(0, 240, 255, 0.7), 0 0 20px rgba(255, 0, 224, 0.35);
+}
+
+.rangkuman-row .r-value span {
+  display: inline-block;
+  transition: transform 0.2s ease;
+}
+.rangkuman-row .r-value span.pop { animation: rPop 0.3s ease; }
+@keyframes rPop {
+  0%   { transform: scale(0.7); }
+  60%  { transform: scale(1.15); }
+  100% { transform: scale(1); }
+}
+
+/* ============================================================
    SYNC OVERLAY (FULL SCREEN)
    ============================================================ */
 .sync-overlay {
@@ -893,6 +869,20 @@ select option { background: #0a0f23; color: var(--text-main); }
 }
 
 /* ============================================================
+   REDUCED MOTION (hormati setelan HP)
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .grid-overlay, .scanline, .orb,
+  .logo, h1, .panel::before, .footer-text,
+  .scanner-wrapper, .scan-line,
+  .sync-text, .sync-spinner .ring {
+    animation: none !important;
+  }
+  .orb { display: none; }
+  .scanline { display: none; }
+}
+
+/* ============================================================
    RESPONSIVE
    ============================================================ */
 @media (max-width: 640px) {
@@ -909,4 +899,10 @@ select option { background: #0a0f23; color: var(--text-main); }
   .list-container { max-height: 48vh; }
   .sync-spinner { width: 76px; height: 76px; }
   .sync-text { font-size: 0.85rem; letter-spacing: 2px; }
+
+  /* Ringankan animasi background di HP */
+  .orb { display: none; }
+  .scanline { animation-duration: 12s; }
+  .grid-overlay { animation-duration: 40s; }
+  .panel::before { animation-duration: 9s; }
 }
