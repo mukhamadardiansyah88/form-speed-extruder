@@ -8,6 +8,7 @@
   --neon-green: #39ff14;
   --neon-yellow: #ffd700;
   --neon-red: #ff2e63;
+  --neon-orange: #ff9f1c;
 
   --bg-dark: #05060f;
   --bg-panel: rgba(10, 15, 35, 0.85);
@@ -33,7 +34,7 @@ body {
 }
 
 /* ============================================================
-   BACKGROUND ANIMASI FUTURISTIK
+   BACKGROUND (STATIS — tanpa animasi gerak)
    ============================================================ */
 .bg-anim {
   position: fixed; inset: 0; z-index: -3;
@@ -51,50 +52,25 @@ body {
     linear-gradient(rgba(0, 240, 255, 0.06) 1px, transparent 1px),
     linear-gradient(90deg, rgba(0, 240, 255, 0.06) 1px, transparent 1px);
   background-size: 50px 50px;
-  animation: gridMove 22s linear infinite;
   pointer-events: none;
-}
-
-@keyframes gridMove {
-  0%   { transform: translate(0, 0); }
-  100% { transform: translate(50px, 50px); }
 }
 
 .scanline {
   position: fixed; left: 0; width: 100%; height: 3px;
   background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
-  opacity: 0.55; z-index: -1;
-  animation: scan 7s linear infinite;
+  opacity: 0.35; z-index: -1;
+  top: 35%;
   pointer-events: none;
-}
-
-@keyframes scan {
-  0%   { top: -10px; }
-  100% { top: 100%; }
 }
 
 .orb {
   position: fixed; border-radius: 50%;
   filter: blur(60px); opacity: 0.28;
   z-index: -1; pointer-events: none;
-  will-change: transform;
 }
-.orb1 { width: 280px; height: 280px; background: var(--neon-cyan);   top: 8%;  left: 4%;  animation: float1 16s ease-in-out infinite; }
-.orb2 { width: 220px; height: 220px; background: var(--neon-pink);   bottom: 8%; right: 4%; animation: float2 19s ease-in-out infinite; }
-.orb3 { width: 200px; height: 200px; background: var(--neon-purple); top: 55%; left: 50%; animation: float3 22s ease-in-out infinite; }
-
-@keyframes float1 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50%      { transform: translate(80px, 60px) scale(1.2); }
-}
-@keyframes float2 {
-  0%, 100% { transform: translate(0, 0) scale(1); }
-  50%      { transform: translate(-70px, -50px) scale(1.15); }
-}
-@keyframes float3 {
-  0%, 100% { transform: translate(-50%, -50%) scale(1); }
-  50%      { transform: translate(-30%, -70%) scale(1.1); }
-}
+.orb1 { width: 280px; height: 280px; background: var(--neon-cyan);   top: 8%;  left: 4%; }
+.orb2 { width: 220px; height: 220px; background: var(--neon-pink);   bottom: 8%; right: 4%; }
+.orb3 { width: 200px; height: 200px; background: var(--neon-purple); top: 55%; left: 50%; transform: translate(-50%, -50%); }
 
 /* ============================================================
    KONTEN
@@ -113,28 +89,16 @@ header { text-align: center; padding: 20px 16px 14px; }
 .logo {
   width: 72px; height: 72px; object-fit: contain;
   filter: drop-shadow(0 0 12px var(--neon-cyan)) drop-shadow(0 0 24px rgba(0, 240, 255, 0.5));
-  animation: logoPulse 3s ease-in-out infinite;
-}
-
-@keyframes logoPulse {
-  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 12px var(--neon-cyan)) drop-shadow(0 0 24px rgba(0, 240, 255, 0.5)); }
-  50%      { transform: scale(1.06); filter: drop-shadow(0 0 20px var(--neon-cyan)) drop-shadow(0 0 40px rgba(255, 0, 224, 0.55)); }
 }
 
 h1 {
   font-size: 2rem; font-weight: 700; letter-spacing: 3px;
   margin-top: 8px;
   background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink), var(--neon-cyan));
-  background-size: 200% auto;
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: textShine 5s linear infinite;
   text-transform: uppercase;
-}
-
-@keyframes textShine {
-  0%   { background-position: 0% center; }
-  100% { background-position: 200% center; }
+  filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.5));
 }
 
 .subtitle {
@@ -155,16 +119,12 @@ h1 {
   position: relative; overflow: hidden;
 }
 
+/* Garis atas statis (tanpa animasi) */
 .panel::before {
-  content: ''; position: absolute; top: 0; left: -100%;
+  content: ''; position: absolute; top: 0; left: 0;
   width: 100%; height: 2px;
   background: linear-gradient(90deg, transparent, var(--neon-cyan), transparent);
-  animation: borderScan 5s linear infinite;
-}
-
-@keyframes borderScan {
-  0%   { left: -100%; }
-  100% { left: 100%; }
+  opacity: 0.7;
 }
 
 .panel-title {
@@ -201,7 +161,7 @@ input[type="date"], input[type="text"], select {
   border: 1px solid rgba(0, 240, 255, 0.35);
   border-radius: 8px; color: var(--text-main);
   font-family: inherit; font-size: 1rem; font-weight: 600;
-  outline: none; transition: all 0.25s ease;
+  outline: none; transition: border-color 0.2s ease, box-shadow 0.2s ease;
 }
 
 input[type="date"]:focus, input[type="text"]:focus, select:focus {
@@ -240,17 +200,14 @@ select option { background: #0a0f23; color: var(--text-main); }
   border-radius: 8px; color: #c0e8ff;
   font-family: inherit; font-size: 0.85rem; font-weight: 700;
   letter-spacing: 1px; cursor: pointer;
-  transition: all 0.2s ease; position: relative;
-  overflow: hidden; text-align: center;
+  transition: border-color 0.2s, box-shadow 0.2s, color 0.2s;
+  position: relative; overflow: hidden; text-align: center;
 }
 
 .mesin-btn:hover {
   border-color: var(--neon-cyan); color: #fff;
   box-shadow: 0 0 14px rgba(0, 240, 255, 0.5);
-  transform: translateY(-2px);
 }
-
-.mesin-btn:active { transform: translateY(0); }
 
 .mesin-btn.filled {
   background: linear-gradient(135deg, rgba(57, 255, 20, 0.28), rgba(0, 240, 255, 0.22));
@@ -277,9 +234,7 @@ select option { background: #0a0f23; color: var(--text-main); }
   z-index: 1000; padding: 16px;
 }
 
-.overlay.active { display: flex; animation: fadeIn 0.25s ease; }
-
-@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+.overlay.active { display: flex; }
 
 .modal {
   background: linear-gradient(145deg, rgba(10, 18, 40, 0.98), rgba(5, 8, 20, 0.98));
@@ -287,13 +242,7 @@ select option { background: #0a0f23; color: var(--text-main); }
   border-radius: 16px; padding: 22px;
   width: 100%; max-width: 460px;
   box-shadow: 0 0 40px rgba(0, 240, 255, 0.4), inset 0 0 30px rgba(0, 240, 255, 0.05);
-  animation: modalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
   position: relative;
-}
-
-@keyframes modalIn {
-  from { transform: scale(0.85) translateY(20px); opacity: 0; }
-  to   { transform: scale(1) translateY(0); opacity: 1; }
 }
 
 .modal-header {
@@ -310,10 +259,10 @@ select option { background: #0a0f23; color: var(--text-main); }
 .close-btn {
   background: none; border: none; color: var(--neon-pink);
   font-size: 1.6rem; cursor: pointer; line-height: 1;
-  transition: all 0.2s; padding: 0 4px;
+  transition: color 0.2s, text-shadow 0.2s; padding: 0 4px;
 }
 
-.close-btn:hover { color: #fff; text-shadow: 0 0 12px var(--neon-pink); transform: rotate(90deg); }
+.close-btn:hover { color: #fff; text-shadow: 0 0 12px var(--neon-pink); }
 
 /* ============================================================
    OVERLAY INPUT SPK & SPEED
@@ -328,11 +277,11 @@ select option { background: #0a0f23; color: var(--text-main); }
   border-radius: 8px; color: #fff;
   font-family: inherit; font-size: 0.85rem; font-weight: 700;
   cursor: pointer; letter-spacing: 1px;
-  transition: all 0.2s; white-space: nowrap;
+  transition: box-shadow 0.2s; white-space: nowrap;
   display: flex; align-items: center; gap: 4px;
 }
 
-.scan-btn:hover { box-shadow: 0 0 16px rgba(255, 0, 224, 0.7); transform: translateY(-2px); }
+.scan-btn:hover { box-shadow: 0 0 16px rgba(255, 0, 224, 0.7); }
 
 .spk-info {
   background: rgba(0, 240, 255, 0.08);
@@ -340,7 +289,7 @@ select option { background: #0a0f23; color: var(--text-main); }
   border-radius: 10px; padding: 12px 14px;
   margin-bottom: 12px; min-height: 62px;
   font-size: 0.95rem; line-height: 1.5;
-  transition: all 0.25s ease;
+  transition: background 0.2s, border-color 0.2s;
 }
 
 .spk-info .label {
@@ -361,6 +310,9 @@ select option { background: #0a0f23; color: var(--text-main); }
 .spk-info.success { background: rgba(57, 255, 20, 0.08); border-color: rgba(57, 255, 20, 0.5); }
 .spk-info.success .value { color: #b6ffb0; text-shadow: 0 0 8px rgba(57, 255, 20, 0.55); }
 
+.spk-info.warning { background: rgba(255, 159, 28, 0.12); border-color: rgba(255, 159, 28, 0.7); }
+.spk-info.warning .value { color: #ffc46b; text-shadow: 0 0 8px rgba(255, 159, 28, 0.65); }
+
 .speed-group { margin-bottom: 16px; }
 .speed-group input { font-size: 1.2rem; text-align: center; font-weight: 700; letter-spacing: 2px; }
 
@@ -373,31 +325,28 @@ select option { background: #0a0f23; color: var(--text-main); }
   flex: 1; padding: 12px; border-radius: 8px;
   font-family: inherit; font-size: 0.95rem; font-weight: 700;
   letter-spacing: 2px; text-transform: uppercase;
-  cursor: pointer; transition: all 0.25s; border: 1px solid;
+  cursor: pointer; transition: box-shadow 0.2s, opacity 0.2s; border: 1px solid;
 }
 
 .btn-primary {
   background: linear-gradient(135deg, rgba(0, 240, 255, 0.3), rgba(0, 180, 255, 0.3));
   border-color: var(--neon-cyan); color: #fff;
 }
-
-.btn-primary:hover:not(:disabled) { box-shadow: 0 0 20px rgba(0, 240, 255, 0.8); transform: translateY(-2px); }
+.btn-primary:hover:not(:disabled) { box-shadow: 0 0 20px rgba(0, 240, 255, 0.8); }
 .btn-primary:disabled { opacity: 0.35; cursor: not-allowed; }
 
 .btn-secondary {
   background: rgba(255, 0, 224, 0.15);
   border-color: var(--neon-pink); color: #ffb3f0;
 }
-
-.btn-secondary:hover { box-shadow: 0 0 20px rgba(255, 0, 224, 0.6); transform: translateY(-2px); }
+.btn-secondary:hover { box-shadow: 0 0 20px rgba(255, 0, 224, 0.6); }
 
 .btn-success {
   background: linear-gradient(135deg, rgba(57, 255, 20, 0.3), rgba(0, 200, 100, 0.3));
   border-color: var(--neon-green); color: #fff;
   width: 100%; padding: 16px; font-size: 1.05rem;
 }
-
-.btn-success:hover:not(:disabled) { box-shadow: 0 0 28px rgba(57, 255, 20, 0.8); transform: translateY(-2px); }
+.btn-success:hover:not(:disabled) { box-shadow: 0 0 28px rgba(57, 255, 20, 0.8); }
 .btn-success:disabled { opacity: 0.35; cursor: not-allowed; }
 
 /* ============================================================
@@ -414,7 +363,6 @@ select option { background: #0a0f23; color: var(--text-main); }
   border-radius: 16px; padding: 16px;
   width: 100%; max-width: 460px;
   box-shadow: 0 0 40px rgba(0, 240, 255, 0.5), inset 0 0 30px rgba(0, 240, 255, 0.06);
-  animation: modalIn 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
 .scanner-modal .modal-header {
@@ -428,18 +376,11 @@ select option { background: #0a0f23; color: var(--text-main); }
   border-radius: 16px;
   padding: 3px;
   background: linear-gradient(135deg, var(--neon-cyan), var(--neon-purple), var(--neon-pink), var(--neon-cyan));
-  background-size: 300% 300%;
-  animation: borderGlow 4s ease infinite;
   box-shadow:
     0 0 20px rgba(0, 240, 255, 0.4),
     0 0 40px rgba(168, 85, 247, 0.3),
     inset 0 0 20px rgba(0, 240, 255, 0.1);
   margin-bottom: 14px;
-}
-
-@keyframes borderGlow {
-  0%, 100% { background-position: 0% 50%; }
-  50%      { background-position: 100% 50%; }
 }
 
 .scanner-inner {
@@ -463,6 +404,7 @@ select option { background: #0a0f23; color: var(--text-main); }
 #qr-reader__header_message { display: none !important; }
 #qr-reader img[alt="Info icon"] { display: none !important; }
 
+/* Scan line kamera TETAP ada (hanya aktif saat scanner terbuka) */
 .scan-line {
   position: absolute;
   left: 10%; right: 10%;
@@ -509,12 +451,6 @@ select option { background: #0a0f23; color: var(--text-main); }
     0 0 10px rgba(57, 255, 20, 0.9),
     0 0 25px rgba(57, 255, 20, 0.6),
     0 0 40px rgba(57, 255, 20, 0.3);
-  animation: successPop 0.4s ease;
-}
-
-@keyframes successPop {
-  0%   { transform: scale(0.85); opacity: 0; }
-  100% { transform: scale(1); opacity: 1; }
 }
 
 /* ============================================================
@@ -529,7 +465,7 @@ select option { background: #0a0f23; color: var(--text-main); }
   color: var(--text-main); font-weight: 700; letter-spacing: 1px;
   box-shadow: 0 0 24px rgba(0, 240, 255, 0.5);
   z-index: 4000;
-  transition: transform 0.35s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transition: transform 0.3s ease-out;
   max-width: 90%; text-align: center;
 }
 
@@ -538,7 +474,7 @@ select option { background: #0a0f23; color: var(--text-main); }
 .toast.success { border-color: var(--neon-green); box-shadow: 0 0 24px rgba(57, 255, 20, 0.6); }
 
 /* ============================================================
-   LOADING
+   LOADING (spinner fungsional — tetap berputar)
    ============================================================ */
 .loading {
   display: inline-block; width: 16px; height: 16px;
@@ -582,10 +518,8 @@ select option { background: #0a0f23; color: var(--text-main); }
   letter-spacing: 2.5px; text-transform: uppercase;
   text-align: center; white-space: nowrap;
   background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink), var(--neon-purple), var(--neon-cyan));
-  background-size: 200% auto;
   -webkit-background-clip: text; -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: textShine 6s linear infinite;
   filter: drop-shadow(0 0 6px rgba(0, 240, 255, 0.55)) drop-shadow(0 0 12px rgba(255, 0, 224, 0.35));
 }
 
@@ -664,7 +598,7 @@ select option { background: #0a0f23; color: var(--text-main); }
   letter-spacing: 1.5px;
   text-transform: uppercase;
   cursor: pointer;
-  transition: all 0.2s;
+  transition: box-shadow 0.2s;
   border: 1px solid;
 }
 
@@ -673,14 +607,14 @@ select option { background: #0a0f23; color: var(--text-main); }
   border-color: var(--neon-yellow);
   color: #ffe98a;
 }
-.btn-edit:hover { box-shadow: 0 0 16px rgba(255, 215, 0, 0.6); transform: translateY(-1px); }
+.btn-edit:hover { box-shadow: 0 0 16px rgba(255, 215, 0, 0.6); }
 
 .btn-delete {
   background: rgba(255, 46, 99, 0.15);
   border-color: var(--neon-red);
   color: #ff9fb5;
 }
-.btn-delete:hover { box-shadow: 0 0 16px rgba(255, 46, 99, 0.7); transform: translateY(-1px); }
+.btn-delete:hover { box-shadow: 0 0 16px rgba(255, 46, 99, 0.7); }
 
 .btn-add-row {
   width: 100%;
@@ -709,11 +643,11 @@ select option { background: #0a0f23; color: var(--text-main); }
   border-color: var(--neon-red);
   color: #fff;
 }
-.btn-danger:hover:not(:disabled) { box-shadow: 0 0 20px rgba(255, 46, 99, 0.85); transform: translateY(-2px); }
+.btn-danger:hover:not(:disabled) { box-shadow: 0 0 20px rgba(255, 46, 99, 0.85); }
 .btn-danger:disabled { opacity: 0.35; cursor: not-allowed; }
 
 /* ============================================================
-   RANGKUMAN MESIN AKTIF (panel sendiri)
+   RANGKUMAN MESIN AKTIF (panel sendiri, tanpa animasi pop)
    ============================================================ */
 .rangkuman {
   display: flex;
@@ -778,19 +712,8 @@ select option { background: #0a0f23; color: var(--text-main); }
   text-shadow: 0 0 10px rgba(0, 240, 255, 0.7), 0 0 20px rgba(255, 0, 224, 0.35);
 }
 
-.rangkuman-row .r-value span {
-  display: inline-block;
-  transition: transform 0.2s ease;
-}
-.rangkuman-row .r-value span.pop { animation: rPop 0.3s ease; }
-@keyframes rPop {
-  0%   { transform: scale(0.7); }
-  60%  { transform: scale(1.15); }
-  100% { transform: scale(1); }
-}
-
 /* ============================================================
-   SYNC OVERLAY (FULL SCREEN)
+   SYNC OVERLAY (FULL SCREEN) — spinner fungsional tetap berputar
    ============================================================ */
 .sync-overlay {
   position: fixed;
@@ -806,9 +729,7 @@ select option { background: #0a0f23; color: var(--text-main); }
   -webkit-backdrop-filter: blur(6px);
   pointer-events: all;
 }
-.sync-overlay.active { display: flex; animation: syncFadeIn 0.25s ease; }
-
-@keyframes syncFadeIn { from { opacity: 0; } to { opacity: 1; } }
+.sync-overlay.active { display: flex; }
 
 .sync-spinner {
   position: relative;
@@ -855,31 +776,20 @@ select option { background: #0a0f23; color: var(--text-main); }
   letter-spacing: 3px;
   text-transform: uppercase;
   background: linear-gradient(90deg, var(--neon-cyan), var(--neon-pink), var(--neon-green), var(--neon-cyan));
-  background-size: 200% auto;
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
-  animation: syncTextShine 2.4s linear infinite;
-  text-shadow: 0 0 12px rgba(0, 240, 255, 0.4);
-}
-
-@keyframes syncTextShine {
-  0%   { background-position: 0% center; }
-  100% { background-position: 200% center; }
+  filter: drop-shadow(0 0 8px rgba(0, 240, 255, 0.5));
 }
 
 /* ============================================================
    REDUCED MOTION (hormati setelan HP)
    ============================================================ */
 @media (prefers-reduced-motion: reduce) {
-  .grid-overlay, .scanline, .orb,
-  .logo, h1, .panel::before, .footer-text,
-  .scanner-wrapper, .scan-line,
-  .sync-text, .sync-spinner .ring {
-    animation: none !important;
+  .scan-line, .loading, .sync-spinner .ring {
+    animation-duration: 1.5s;
   }
-  .orb { display: none; }
-  .scanline { display: none; }
+  .scan-line { display: none; }
 }
 
 /* ============================================================
@@ -900,9 +810,6 @@ select option { background: #0a0f23; color: var(--text-main); }
   .sync-spinner { width: 76px; height: 76px; }
   .sync-text { font-size: 0.85rem; letter-spacing: 2px; }
 
-  /* Ringankan animasi background di HP */
   .orb { display: none; }
-  .scanline { animation-duration: 12s; }
-  .grid-overlay { animation-duration: 40s; }
-  .panel::before { animation-duration: 9s; }
+  .scanline { display: none; }
 }
