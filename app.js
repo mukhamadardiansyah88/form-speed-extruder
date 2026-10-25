@@ -138,7 +138,7 @@
     if (!ymdStr || ymdStr.length < 10) return ymdStr;
     try {
       const d = ymdToDate(ymdStr);
-      return d.toLocaleDateString();
+      return d.toLocaleDateString('id-ID');
     } catch (e) {
       return ymdStr;
     }
