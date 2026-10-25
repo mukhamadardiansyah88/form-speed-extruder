@@ -20,7 +20,6 @@
 </head>
 <body>
 
-  <!-- BACKGROUND (statis) -->
   <div class="bg-anim"></div>
   <div class="grid-overlay"></div>
   <div class="scanline"></div>
@@ -30,25 +29,20 @@
 
   <div class="container">
 
-    <!-- HEADER -->
     <header>
       <img class="logo" src="https://cdn-icons-png.flaticon.com/512/9272/9272469.png" alt="Logo">
       <h1>FORM SPEED EXTRUDER</h1>
       <div class="subtitle">Production Speed Input System</div>
     </header>
 
-    <!-- TOGGLE TAB -->
     <div class="tab-switch" role="tablist">
       <button class="tab-btn active" id="tabForm" data-tab="form" type="button">Input Speed</button>
       <button class="tab-btn" id="tabRekap" data-tab="rekap" type="button">Rekap Speed</button>
     </div>
 
-    <!-- ============================================ -->
-    <!-- HALAMAN 1: FORM INPUT                        -->
-    <!-- ============================================ -->
+    <!-- HALAMAN 1: FORM -->
     <div id="pageForm">
 
-      <!-- PANEL KONTROL -->
       <div class="panel">
         <div class="panel-title">Kontrol Produksi</div>
         <div class="form-row">
@@ -67,7 +61,6 @@
         </div>
       </div>
 
-      <!-- PANEL RANGKUMAN MESIN AKTIF -->
       <div class="panel">
         <div class="panel-title">Rangkuman Mesin Aktif</div>
         <div class="rangkuman" id="rangkumanMesin">
@@ -91,7 +84,6 @@
         </div>
       </div>
 
-      <!-- PANEL MESIN -->
       <div class="panel">
         <div class="panel-title">Daftar Mesin</div>
         <div id="mesinContainer">
@@ -101,7 +93,6 @@
         </div>
       </div>
 
-      <!-- SIMPAN -->
       <div class="panel">
         <button class="btn btn-success" id="btnSimpan" disabled>
           💾 Simpan ke Sheet Inputan
@@ -110,14 +101,10 @@
       </div>
 
     </div>
-    <!-- /HALAMAN 1 -->
 
-    <!-- ============================================ -->
-    <!-- HALAMAN 2: REKAP SPEED                       -->
-    <!-- ============================================ -->
+    <!-- HALAMAN 2: REKAP -->
     <div id="pageRekap" class="hidden">
 
-      <!-- PANEL FILTER & RENTANG -->
       <div class="panel">
         <div class="panel-title">Rentang Rekap</div>
         <div class="form-row">
@@ -126,10 +113,8 @@
             <input type="date" id="rekapTanggalAwal">
           </div>
           <div class="form-group">
-            <label for="rekapTanggalAkhir">Tanggal Akhir (H+6)</label>
-            <select id="rekapTanggalAkhir">
-              <!-- diisi app.js -->
-            </select>
+            <label for="rekapTanggalAkhir">Tanggal Akhir</label>
+            <select id="rekapTanggalAkhir"></select>
           </div>
         </div>
 
@@ -157,7 +142,6 @@
         </div>
       </div>
 
-      <!-- PANEL LEGENDA -->
       <div class="panel">
         <div class="panel-title">Legenda</div>
         <div class="legend">
@@ -166,7 +150,6 @@
         </div>
       </div>
 
-      <!-- PANEL TABEL REKAP -->
       <div class="panel">
         <div class="panel-title">Tabel Rekap</div>
         <div class="rekap-scroll" id="rekapScroll">
@@ -180,9 +163,7 @@
       </div>
 
     </div>
-    <!-- /HALAMAN 2 -->
 
-    <!-- FOOTER CREDIT -->
     <footer class="footer-credit">
       <div class="footer-line"></div>
       <div class="footer-text">
@@ -193,9 +174,7 @@
 
   </div>
 
-  <!-- ============================================ -->
-  <!-- OVERLAY 1: INPUT / EDIT SPK & SPEED          -->
-  <!-- ============================================ -->
+  <!-- OVERLAY INPUT -->
   <div class="overlay" id="overlayInput">
     <div class="modal">
       <div class="modal-header">
@@ -226,9 +205,7 @@
     </div>
   </div>
 
-  <!-- ============================================ -->
-  <!-- OVERLAY 2: SCANNER                           -->
-  <!-- ============================================ -->
+  <!-- OVERLAY SCANNER -->
   <div class="overlay overlay-scanner" id="overlayScanner">
     <div class="scanner-modal">
       <div class="modal-header">
@@ -253,9 +230,7 @@
     </div>
   </div>
 
-  <!-- ============================================ -->
-  <!-- OVERLAY 3: DAFTAR DATA (per mesin)           -->
-  <!-- ============================================ -->
+  <!-- OVERLAY LIST -->
   <div class="overlay" id="overlayList">
     <div class="modal">
       <div class="modal-header">
@@ -273,9 +248,7 @@
     </div>
   </div>
 
-  <!-- ============================================ -->
-  <!-- OVERLAY 4: KONFIRMASI HAPUS                  -->
-  <!-- ============================================ -->
+  <!-- OVERLAY KONFIRMASI -->
   <div class="overlay" id="overlayConfirm">
     <div class="modal modal-confirm">
       <div class="modal-header">
@@ -294,13 +267,10 @@
     </div>
   </div>
 
-  <!-- TOAST -->
   <div class="toast" id="toast"></div>
 
-  <!-- LIBRARY SCANNER -->
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 
-  <!-- SCRIPT APP -->
   <script src="config.js"></script>
   <script src="scanner.js"></script>
   <script src="app.js"></script>
