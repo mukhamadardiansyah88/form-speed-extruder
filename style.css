@@ -209,7 +209,7 @@ input[type="date"]:focus, input[type="text"]:focus, select:focus {
 select option { background: #0a0f23; color: var(--text-main); }
 
 /* ============================================================
-   MULTI CHECK (filter rekap)
+   MULTI CHECK
    ============================================================ */
 .multi-check {
   display: flex;
@@ -884,7 +884,8 @@ select option { background: #0a0f23; color: var(--text-main); }
 }
 
 .rekap-table {
-  border-collapse: collapse;
+  border-collapse: separate;
+  border-spacing: 0;
   width: max-content;
   min-width: 100%;
   font-family: 'Rajdhani', system-ui, sans-serif;
@@ -892,27 +893,41 @@ select option { background: #0a0f23; color: var(--text-main); }
 }
 
 .rekap-table th, .rekap-table td {
-  border: 1px solid rgba(0, 240, 255, 0.22);
+  border-right: 1px solid rgba(0, 240, 255, 0.22);
+  border-bottom: 1px solid rgba(0, 240, 255, 0.22);
   padding: 8px 10px;
   text-align: center;
   white-space: nowrap;
 }
 
+/* === HEADER: dua baris sticky, tanggal di atas, shift di bawah === */
 .rekap-table thead th {
-  background: rgba(0, 20, 40, 0.95);
+  background: rgba(0, 20, 40, 0.98);
   color: var(--neon-cyan);
   font-weight: 700;
   letter-spacing: 1.5px;
   text-transform: uppercase;
-  position: sticky;
-  top: 0;
-  z-index: 3;
   text-shadow: 0 0 8px rgba(0, 240, 255, 0.5);
 }
 
+/* Baris 1 (tanggal) — top: 0 */
+.rekap-table thead tr:first-child th {
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+/* Baris 2 (shift) — menempel di bawah baris tanggal */
+.rekap-table thead tr:nth-child(2) th {
+  position: sticky;
+  top: 37px; /* tinggi baris tanggal; sesuaikan jika padding berubah */
+  z-index: 3;
+}
+
+/* Header kolom MESIN (kiri atas) — sticky di dua sumbu */
 .rekap-table thead th.th-mesin {
   left: 0;
-  z-index: 4;
+  z-index: 5;
   background: rgba(0, 20, 40, 1);
 }
 
@@ -926,6 +941,7 @@ select option { background: #0a0f23; color: var(--text-main); }
   letter-spacing: 1px;
   text-align: left;
   min-width: 84px;
+  border-right: 1px solid rgba(0, 240, 255, 0.35);
 }
 
 .rekap-table tbody tr:nth-child(even) td { background: rgba(0, 20, 40, 0.55); }
@@ -957,6 +973,14 @@ select option { background: #0a0f23; color: var(--text-main); }
 }
 
 /* ============================================================
+   REDUCED MOTION
+   ============================================================ */
+@media (prefers-reduced-motion: reduce) {
+  .scan-line { display: none; }
+  .sync-spinner .ring { animation-duration: 2s; }
+}
+
+/* ============================================================
    RESPONSIVE
    ============================================================ */
 @media (max-width: 640px) {
@@ -981,4 +1005,9 @@ select option { background: #0a0f23; color: var(--text-main); }
   .rekap-scroll { max-height: 60vh; }
   .rekap-table { font-size: 0.75rem; }
   .rekap-table th, .rekap-table td { padding: 6px 6px; }
+
+  /* Tinggi baris tanggal di mobile bisa sedikit berbeda; sesuaikan top shift */
+  .rekap-table thead tr:nth-child(2) th {
+    top: 33px;
+  }
 }
