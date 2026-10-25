@@ -8,8 +8,8 @@
    - Beep sukses/gagal saat cari SPK.
    - Loading sync = overlay full screen (neon).
    - Rangkuman mesin aktif per jenis (PP/PE/HD) + total.
-   - Debounce cariSPK (400ms) & validasi speed (250ms).
-   - Validasi satuan (error, OK disable) dan Min/Max (warning).
+   - Debounce cariSPK (400ms).
+   - Validasi satuan instan; validasi Min/Max ditunda 800ms.
    ============================================================ */
 
 (function () {
@@ -30,12 +30,12 @@
   let lookupSeq = 0;
   let lookupDebounceTimer = null;
   let speedDebounceTimer = null;
+  let satuanDebounceTimer = null;
 
-  // Info mesin dari GAS (satuan/min/max)
   let currentMesinInfo = { satuan: '', minSpeed: null, maxSpeed: null };
-  let speedError = false;    // satuan salah -> disable OK
-  let speedWarning = false;  // min/max -> OK tetap aktif
-  let lastSpeedStatus = 'none'; // 'none' | 'warning' | 'error'
+  let speedError = false;
+  let speedWarning = false;
+  let lastSpeedStatus = 'none';
 
   let formMode = 'tambah';
   let editId = null;
@@ -53,7 +53,6 @@
   let lastRangkuman = { pp: -1, pe: -1, hd: -1, total: -1 };
   let lastSummaryText = '';
 
-  // Rentang satuan (hardcode, ringan)
   const RENTANG_SATUAN = {
     'persnelleng': { min: 1, max: 4, label: '1–4' },
     'hz':          { min: 4.0001, max: 60, label: '4,0001–60' },
@@ -672,6 +671,7 @@
 
     if (lookupDebounceTimer) { clearTimeout(lookupDebounceTimer); lookupDebounceTimer = null; }
     if (speedDebounceTimer) { clearTimeout(speedDebounceTimer); speedDebounceTimer = null; }
+    if (satuanDebounceTimer) { clearTimeout(satuanDebounceTimer); satuanDebounceTimer = null; }
 
     if (wasFromList && listMesin) {
       const overlayList = $('overlayList');
@@ -764,7 +764,6 @@
   }
 
   function handleLookupResult(res) {
-    // Ambil info mesin walau SPK gagal
     if (res && res.mesinInfo) {
       currentMesinInfo = {
         satuan: res.mesinInfo.satuan || '',
@@ -802,7 +801,7 @@
     const teks = formatSPKInfo(res.data);
     setSPKInfo(teks, 'success');
     playBeepSuccess();
-    validateSpeed(true); // sukses SPK, jangan timpa info kecuali perlu
+    validateSpeed(true);
   }
 
   function formatSPKInfo(d) {
@@ -818,7 +817,7 @@
   }
 
   /* ------------------------------------------------------------
-     VALIDASI SPEED (satuan error, min/max warning)
+     SPEED: satuan instan, Min/Max tunda 800ms
      ------------------------------------------------------------ */
   function onSpeedChange(immediate) {
     const el = $('speedInput');
@@ -837,36 +836,33 @@
     if (v !== el.value) el.value = v;
 
     if (speedDebounceTimer) { clearTimeout(speedDebounceTimer); speedDebounceTimer = null; }
+    if (satuanDebounceTimer) { clearTimeout(satuanDebounceTimer); satuanDebounceTimer = null; }
 
-    if (immediate) { validateSpeed(); return; }
+    validasiSatuanSaja();
+
+    if (immediate) {
+      validateSpeed();
+      return;
+    }
+
     speedDebounceTimer = setTimeout(function () {
       speedDebounceTimer = null;
-      validateSpeed();
-    }, 250);
+      validateMinMaxSaja();
+    }, 800);
   }
 
-  function validateSpeed(fromSPKSuccess) {
+  function validasiSatuanSaja() {
     const el = $('speedInput');
     const raw = (el.value || '').trim();
     const nilai = speedKeAngka(raw);
 
     speedError = false;
-    speedWarning = false;
 
-    // Kosong: hanya update tombol berdasarkan SPK
     if (raw === '' || nilai === null) {
-      if (!fromSPKSuccess) {
-        // Jangan timpa info SPK success saat speed kosong
-        if (!currentSPKValid) {
-          // biarkan pesan SPK yang sudah ada
-        }
-      }
-      lastSpeedStatus = 'none';
       updateOkState();
       return;
     }
 
-    // 1. Validasi satuan (error) — hanya kalau satuan terisi
     const satuanKey = String(currentMesinInfo.satuan || '').trim().toLowerCase();
     if (satuanKey !== '' && RENTANG_SATUAN[satuanKey]) {
       const r = RENTANG_SATUAN[satuanKey];
@@ -884,7 +880,27 @@
       }
     }
 
-    // 2. Validasi min/max (warning) — hanya kalau dua-duanya terisi
+    updateOkState();
+  }
+
+  function validateMinMaxSaja() {
+    const el = $('speedInput');
+    const raw = (el.value || '').trim();
+    const nilai = speedKeAngka(raw);
+
+    if (speedError) return;
+
+    speedWarning = false;
+
+    if (raw === '' || nilai === null) {
+      if (currentSPKValid && currentSPKData && lastSpeedStatus !== 'error') {
+        setSPKInfo(formatSPKInfo(currentSPKData), 'success');
+      }
+      lastSpeedStatus = 'none';
+      updateOkState();
+      return;
+    }
+
     const min = currentMesinInfo.minSpeed;
     const max = currentMesinInfo.maxSpeed;
     if (min != null && max != null) {
@@ -905,12 +921,17 @@
       }
     }
 
-    // Aman: kalau SPK valid, tampilkan info SPK lagi
     if (currentSPKValid && currentSPKData) {
       setSPKInfo(formatSPKInfo(currentSPKData), 'success');
     }
     lastSpeedStatus = 'none';
     updateOkState();
+  }
+
+  function validateSpeed(fromSPKSuccess) {
+    validasiSatuanSaja();
+    if (speedError) return;
+    validateMinMaxSaja();
   }
 
   function numToComma(n) {
@@ -1145,7 +1166,6 @@
   function setAngkaRangkuman(idEl, nilai, key) {
     const el = $(idEl);
     if (!el) return;
-    const lama = lastRangkuman[key];
     if (String(el.textContent) === String(nilai)) { lastRangkuman[key] = nilai; return; }
     el.textContent = nilai;
     lastRangkuman[key] = nilai;
