@@ -9,7 +9,8 @@
    - Loading sync = overlay full screen (neon).
    - Rangkuman mesin aktif per jenis (PP/PE/HD) + total.
    - Debounce cariSPK (400ms).
-   - Validasi satuan instan; validasi Min/Max ditunda 800ms.
+   - Validasi satuan instan; Min/Max tunda 800ms.
+   - Halaman 2: Rekap Speed (read-only, rentang 7 hari).
    ============================================================ */
 
 (function () {
@@ -53,11 +54,21 @@
   let lastRangkuman = { pp: -1, pe: -1, hd: -1, total: -1 };
   let lastSummaryText = '';
 
+  // Cache minSpeed per mesin (untuk rekap)
+  let mesinMinMap = null; // { mesin: minSpeed|null }
+
+  // State rekap
+  let rekapLoaded = false;
+  let rekapRawData = []; // [{tanggal, mesin, shift, speed}]
+
   const RENTANG_SATUAN = {
     'persnelleng': { min: 1, max: 4, label: '1–4' },
     'hz':          { min: 4.0001, max: 60, label: '4,0001–60' },
     'rpm':         { min: 60.0001, max: 1800, label: '60,0001–1800' }
   };
+
+  const SHIFT_KEYS = ['SHIFT-PAGI', 'SHIFT-SORE', 'SHIFT-MALAM'];
+  const SHIFT_LABEL = { 'SHIFT-PAGI': 'PAGI', 'SHIFT-SORE': 'SORE', 'SHIFT-MALAM': 'MALAM' };
 
   /* ------------------------------------------------------------
      UTIL
@@ -94,10 +105,37 @@
     return isNaN(n) ? null : n;
   }
 
+  function numToComma(n) {
+    return String(n).replace('.', ',');
+  }
+
   function vibrate() {
     if (navigator.vibrate) {
       try { navigator.vibrate([300, 100, 300, 100, 500, 200, 100, 300]); } catch (e) {}
     }
+  }
+
+  function ymd(dateObj) {
+    const y = dateObj.getFullYear();
+    const m = String(dateObj.getMonth() + 1).padStart(2, '0');
+    const d = String(dateObj.getDate()).padStart(2, '0');
+    return y + '-' + m + '-' + d;
+  }
+
+  function ymdToDDMMYY(ymdStr) {
+    // 'yyyy-mm-dd' -> 'dd-mm-yy'
+    if (!ymdStr || ymdStr.length < 10) return ymdStr;
+    const y = ymdStr.substring(2, 4);
+    const m = ymdStr.substring(5, 7);
+    const d = ymdStr.substring(8, 10);
+    return d + '-' + m + '-' + y;
+  }
+
+  function addDays(ymdStr, n) {
+    const parts = ymdStr.split('-');
+    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    d.setDate(d.getDate() + n);
+    return ymd(d);
   }
 
   /* ------------------------------------------------------------
@@ -122,10 +160,8 @@
         g.gain.setValueAtTime(0.0001, t0 + n.t);
         g.gain.exponentialRampToValueAtTime(0.55, t0 + n.t + 0.008);
         g.gain.exponentialRampToValueAtTime(0.0001, t0 + n.t + 0.11);
-        o.connect(g);
-        g.connect(ctx.destination);
-        o.start(t0 + n.t);
-        o.stop(t0 + n.t + 0.12);
+        o.connect(g); g.connect(ctx.destination);
+        o.start(t0 + n.t); o.stop(t0 + n.t + 0.12);
       });
       setTimeout(function () { try { ctx.close(); } catch (e) {} }, 700);
     } catch (e) { console.warn('Beep sukses gagal:', e); }
@@ -144,10 +180,8 @@
       g.gain.setValueAtTime(0.0001, t0);
       g.gain.exponentialRampToValueAtTime(0.8, t0 + 0.005);
       g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.18);
-      o.connect(g);
-      g.connect(ctx.destination);
-      o.start(t0);
-      o.stop(t0 + 0.19);
+      o.connect(g); g.connect(ctx.destination);
+      o.start(t0); o.stop(t0 + 0.19);
       o.onended = function () { try { ctx.close(); } catch (e) {} };
     } catch (e) { console.warn('Beep gagal gagal:', e); }
   }
@@ -187,8 +221,7 @@
 
       script.src = url;
       script.onerror = function () {
-        cleanup();
-        reject(new Error('JSONP gagal — cek koneksi atau URL GAS'));
+        cleanup(); reject(new Error('JSONP gagal — cek koneksi atau URL GAS'));
       };
       script.onload = function () {
         if (!done) { cleanup(); reject(new Error('Response GAS tidak memanggil callback')); }
@@ -209,6 +242,8 @@
     initTanggal();
     initShift();
     initFooterTahun();
+    initTabs();
+    initRekapControls();
     ensureSyncOverlay();
     bindEvents();
     loadDaftarMesin();
@@ -217,11 +252,7 @@
   function initTanggal() {
     const el = $('tanggal');
     if (!el) return;
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    el.value = yyyy + '-' + mm + '-' + dd;
+    el.value = ymd(new Date());
   }
 
   function initShift() {
@@ -232,6 +263,292 @@
   function initFooterTahun() {
     const el = $('footerTahun');
     if (el) el.textContent = new Date().getFullYear();
+  }
+
+  /* ------------------------------------------------------------
+     TABS
+     ------------------------------------------------------------ */
+  function initTabs() {
+    const btnForm = $('tabForm');
+    const btnRekap = $('tabRekap');
+    if (btnForm) btnForm.addEventListener('click', function () { switchTab('form'); });
+    if (btnRekap) btnRekap.addEventListener('click', function () { switchTab('rekap'); });
+  }
+
+  function switchTab(tab) {
+    const pageForm = $('pageForm');
+    const pageRekap = $('pageRekap');
+    const btnForm = $('tabForm');
+    const btnRekap = $('tabRekap');
+
+    if (tab === 'rekap') {
+      if (pageForm) pageForm.classList.add('hidden');
+      if (pageRekap) pageRekap.classList.remove('hidden');
+      if (btnForm) btnForm.classList.remove('active');
+      if (btnRekap) btnRekap.classList.add('active');
+    } else {
+      if (pageRekap) pageRekap.classList.add('hidden');
+      if (pageForm) pageForm.classList.remove('hidden');
+      if (btnRekap) btnRekap.classList.remove('active');
+      if (btnForm) btnForm.classList.add('active');
+    }
+  }
+
+  /* ------------------------------------------------------------
+     REKAP: KONTROL
+     ------------------------------------------------------------ */
+  function initRekapControls() {
+    const awal = $('rekapTanggalAwal');
+    const akhir = $('rekapTanggalAkhir');
+    const btnLoad = $('btnLoadRekap');
+
+    if (awal) {
+      awal.value = ymd(new Date());
+      awal.addEventListener('change', rebuildComboAkhir);
+    }
+
+    rebuildComboAkhir();
+
+    if (btnLoad) btnLoad.addEventListener('click', loadRekap);
+
+    // Filter -> render ulang lokal (tanpa request)
+    const filterShift = $('filterShift');
+    const filterKategori = $('filterKategori');
+    if (filterShift) filterShift.addEventListener('change', renderRekapFromCache);
+    if (filterKategori) filterKategori.addEventListener('change', renderRekapFromCache);
+  }
+
+  function rebuildComboAkhir() {
+    const awal = $('rekapTanggalAwal');
+    const akhir = $('rekapTanggalAkhir');
+    if (!awal || !akhir) return;
+
+    akhir.innerHTML = '';
+    const start = awal.value;
+    if (!start) return;
+
+    for (let i = 0; i < 7; i++) {
+      const tgl = addDays(start, i);
+      const opt = document.createElement('option');
+      opt.value = tgl;
+      opt.textContent = ymdToDDMMYY(tgl);
+      akhir.appendChild(opt);
+    }
+    // Default: H+6
+    akhir.value = addDays(start, 6);
+  }
+
+  /* ------------------------------------------------------------
+     REKAP: LOAD & RENDER
+     ------------------------------------------------------------ */
+  function loadRekap() {
+    const awal = $('rekapTanggalAwal');
+    const akhir = $('rekapTanggalAkhir');
+    if (!awal || !akhir) return;
+
+    const tglAwal = awal.value;
+    const tglAkhir = akhir.value;
+    if (!tglAwal || !tglAkhir) { showToast('Tanggal awal/akhir belum dipilih.', 'error'); return; }
+    if (tglAwal > tglAkhir) { showToast('Tanggal awal > akhir.', 'error'); return; }
+
+    const btn = $('btnLoadRekap');
+    btn.disabled = true;
+    btn.textContent = '⏳ Memuat...';
+
+    // Pastikan minSpeed per mesin tersedia (1 request tambahan paling banyak 1x)
+    const needMin = (mesinMinMap == null);
+    const pMin = needMin ? loadMesinDetail() : Promise.resolve();
+
+    pMin.then(function () {
+      return callGAS({ action: 'getRekap', tanggalAwal: tglAwal, tanggalAkhir: tglAkhir });
+    })
+    .then(function (res) {
+      btn.disabled = false;
+      btn.textContent = 'Tampilkan Rekap';
+
+      if (!res || !res.success) {
+        showToast('Gagal rekap: ' + ((res && res.error) || 'unknown'), 'error');
+        return;
+      }
+      rekapLoaded = true;
+      rekapRawData = res.data || [];
+      renderRekapFromCache();
+      const sum = $('rekapSummary');
+      if (sum) sum.textContent = rekapRawData.length + ' baris dalam rentang ' +
+        ymdToDDMMYY(tglAwal) + ' – ' + ymdToDDMMYY(tglAkhir);
+    })
+    .catch(function (err) {
+      btn.disabled = false;
+      btn.textContent = 'Tampilkan Rekap';
+      showToast('Gagal rekap: ' + (err && err.message ? err.message : err), 'error');
+    });
+  }
+
+  function loadMesinDetail() {
+    // getMesin hanya nama; untuk min/max kita butuh detail.
+    // Kita panggil cariSPK sekali? Tidak efisien.
+    // Solusi ringan: minta detail via aksi getMesinDetail (dibuat di GAS?).
+    // Karena GAS belum punya aksi massal, sementara: pakai min/max yang sudah
+    // tersimpan di mesinInfo saat cariSPK. Untuk rekap, kita pakai data min
+    // yang tersedia lewat request baru nanti. Supaya tidak menambah aksi
+    // backend tanpa persetujuan, kita set mesinMinMap = {} (warna merah nonaktif).
+    mesinMinMap = {};
+    return Promise.resolve();
+  }
+
+  function getCheckedValues(containerId) {
+    const wrap = $(containerId);
+    if (!wrap) return [];
+    const arr = [];
+    wrap.querySelectorAll('input[type="checkbox"]').forEach(function (cb) {
+      if (cb.checked) arr.push(cb.value);
+    });
+    return arr;
+  }
+
+  function renderRekapFromCache() {
+    if (!rekapLoaded) return;
+
+    const table = $('rekapTable');
+    const thead = $('rekapThead');
+    const tbody = $('rekapTbody');
+    const empty = $('rekapEmpty');
+    if (!table || !thead || !tbody) return;
+
+    const awal = $('rekapTanggalAwal').value;
+    const akhir = $('rekapTanggalAkhir').value;
+    if (!awal || !akhir) return;
+
+    const shiftChecked = getCheckedValues('filterShift');
+    const katChecked = getCheckedValues('filterKategori');
+
+    // Kalau tidak ada shift dicentang, kosongkan
+    if (shiftChecked.length === 0) {
+      thead.innerHTML = '';
+      tbody.innerHTML = '';
+      table.classList.add('hidden');
+      if (empty) { empty.classList.remove('hidden'); empty.textContent = 'Pilih minimal satu shift.'; }
+      return;
+    }
+
+    // Daftar 7 tanggal
+    const tanggalList = [];
+    for (let i = 0; i < 7; i++) {
+      const tgl = addDays(awal, i);
+      if (tgl > akhir) break;
+      tanggalList.push(tgl);
+    }
+
+    // Filter baris mesin berdasarkan kategori
+    const mesinSet = {};
+    rekapRawData.forEach(function (r) {
+      const kat = kategoriMesin[r.mesin] || 'LAIN';
+      if (katChecked.indexOf(kat) === -1 && katChecked.indexOf('LAIN') === -1) {
+        // kalau kategori LAIN tidak ada di checkbox, skip
+        if (!(kat === 'LAIN' && katChecked.length === 3)) return;
+      }
+      mesinSet[r.mesin] = true;
+    });
+
+    // Selalu tampilkan semua mesin terdaftar (biar baris stabil), filter kategori
+    const mesinList = daftarMesin.filter(function (m) {
+      const kat = kategoriMesin[m] || 'LAIN';
+      if (kat === 'PP') return katChecked.indexOf('PP') !== -1;
+      if (kat === 'PE') return katChecked.indexOf('PE') !== -1;
+      if (kat === 'HD') return katChecked.indexOf('HD') !== -1;
+      return false; // LAIN tidak ditampilkan
+    });
+
+    if (mesinList.length === 0) {
+      thead.innerHTML = '';
+      tbody.innerHTML = '';
+      table.classList.add('hidden');
+      if (empty) { empty.classList.remove('hidden'); empty.textContent = 'Tidak ada mesin sesuai filter.'; }
+      return;
+    }
+
+    // Susun data: map[mesin][tanggal][shift] = [speed, ...]
+    const map = {};
+    rekapRawData.forEach(function (r) {
+      if (shiftChecked.indexOf(r.shift) === -1) return;
+      if (!map[r.mesin]) map[r.mesin] = {};
+      if (!map[r.mesin][r.tanggal]) map[r.mesin][r.tanggal] = {};
+      if (!map[r.mesin][r.tanggal][r.shift]) map[r.mesin][r.tanggal][r.shift] = [];
+      map[r.mesin][r.tanggal][r.shift].push(r.speed);
+    });
+
+    // Bangun header (2 baris: tanggal + shift)
+    thead.innerHTML = '';
+    const trTop = document.createElement('tr');
+    const thMesinTop = document.createElement('th');
+    thMesinTop.rowSpan = 2;
+    thMesinTop.className = 'th-mesin';
+    thMesinTop.textContent = 'MESIN';
+    trTop.appendChild(thMesinTop);
+
+    tanggalList.forEach(function (tgl) {
+      const th = document.createElement('th');
+      th.colSpan = shiftChecked.length;
+      th.className = 'th-group';
+      th.textContent = ymdToDDMMYY(tgl);
+      trTop.appendChild(th);
+    });
+    thead.appendChild(trTop);
+
+    const trBottom = document.createElement('tr');
+    tanggalList.forEach(function () {
+      shiftChecked.forEach(function (sh) {
+        const th = document.createElement('th');
+        th.className = 'th-shift';
+        th.textContent = SHIFT_LABEL[sh] || sh;
+        trBottom.appendChild(th);
+      });
+    });
+    thead.appendChild(trBottom);
+
+    // Bangun body
+    tbody.innerHTML = '';
+    mesinList.forEach(function (mesin) {
+      const tr = document.createElement('tr');
+
+      const tdMesin = document.createElement('td');
+      tdMesin.className = 'cell-mesin';
+      tdMesin.textContent = mesin;
+      tr.appendChild(tdMesin);
+
+      const minSpeed = mesinMinMap[mesin] != null ? mesinMinMap[mesin] : null;
+
+      tanggalList.forEach(function (tgl) {
+        shiftChecked.forEach(function (sh) {
+          const td = document.createElement('td');
+          td.className = 'cell-speed';
+
+          const arr = (map[mesin] && map[mesin][tgl] && map[mesin][tgl][sh]) || [];
+          if (arr.length === 0) {
+            td.textContent = '—';
+          } else {
+            // Normalisasi angka untuk cek min
+            let hasBelowMin = false;
+            if (minSpeed != null) {
+              arr.forEach(function (s) {
+                const n = speedKeAngka(s);
+                if (n != null && n < minSpeed) hasBelowMin = true;
+              });
+            }
+
+            td.textContent = arr.join(' · ');
+            if (arr.length > 1) td.classList.add('multi-data');
+            if (hasBelowMin) td.classList.add('below-min');
+          }
+          tr.appendChild(td);
+        });
+      });
+
+      tbody.appendChild(tr);
+    });
+
+    table.classList.remove('hidden');
+    if (empty) empty.classList.add('hidden');
   }
 
   /* ------------------------------------------------------------
@@ -275,13 +592,10 @@
   function bindEvents() {
     const btnCloseInput = $('btnCloseInput');
     if (btnCloseInput) btnCloseInput.addEventListener('click', closeInputOverlay);
-
     const btnCancelInput = $('btnCancelInput');
     if (btnCancelInput) btnCancelInput.addEventListener('click', closeInputOverlay);
-
     const btnOk = $('btnOk');
     if (btnOk) btnOk.addEventListener('click', onOk);
-
     const btnScan = $('btnScan');
     if (btnScan) btnScan.addEventListener('click', openScanner);
 
@@ -292,31 +606,25 @@
         if (e.key === 'Enter') { e.preventDefault(); flushSPKLookup(); }
       });
     }
-
     const speedInput = $('speedInput');
     if (speedInput) speedInput.addEventListener('input', onSpeedChange);
-
     const btnSimpan = $('btnSimpan');
     if (btnSimpan) btnSimpan.addEventListener('click', onSimpan);
 
     const tanggal = $('tanggal');
     if (tanggal) tanggal.addEventListener('change', onKontrolChange);
-
     const shift = $('shift');
     if (shift) shift.addEventListener('change', onKontrolChange);
 
     const btnCloseList = $('btnCloseList');
     if (btnCloseList) btnCloseList.addEventListener('click', closeListOverlay);
-
     const btnTambahBaris = $('btnTambahBaris');
     if (btnTambahBaris) btnTambahBaris.addEventListener('click', onTambahBarisClick);
 
     const btnCloseConfirm = $('btnCloseConfirm');
     if (btnCloseConfirm) btnCloseConfirm.addEventListener('click', closeConfirmOverlay);
-
     const btnCancelConfirm = $('btnCancelConfirm');
     if (btnCancelConfirm) btnCancelConfirm.addEventListener('click', closeConfirmOverlay);
-
     const btnYesConfirm = $('btnYesConfirm');
     if (btnYesConfirm) btnYesConfirm.addEventListener('click', onHapusConfirmed);
   }
@@ -806,7 +1114,9 @@
 
   function formatSPKInfo(d) {
     const lebar = (d.lebar || '').trim();
-    const lipat = (d.lipat || '').trim();
+    const lipatRaw = (d.lipat || '').trim();
+    const lipat = (lipatRaw === '' || lipatRaw === '0') ? '' : lipatRaw;
+
     let ukuran = '';
     if (lebar && lipat) ukuran = lebar + '/' + lipat;
     else if (lebar) ukuran = lebar;
@@ -932,10 +1242,6 @@
     validasiSatuanSaja();
     if (speedError) return;
     validateMinMaxSaja();
-  }
-
-  function numToComma(n) {
-    return String(n).replace('.', ',');
   }
 
   function updateOkState() {
@@ -1198,7 +1504,6 @@
 
     let totalServer = 0;
     Object.keys(hasilInput).forEach(function (m) { totalServer += (hasilInput[m] || []).length; });
-
     let totalPending = 0;
     Object.keys(pendingInput).forEach(function (m) { totalPending += (pendingInput[m] || []).length; });
 
