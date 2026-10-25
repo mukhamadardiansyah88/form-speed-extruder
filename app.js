@@ -11,6 +11,7 @@
    - Debounce cariSPK (400ms).
    - Validasi satuan instan; Min/Max tunda 800ms.
    - Halaman 2: Rekap Speed (read-only, rentang 7 hari).
+   - Warna merah rekap aktif kalau minSpeed terisi.
    ============================================================ */
 
 (function () {
@@ -59,7 +60,7 @@
 
   // State rekap
   let rekapLoaded = false;
-  let rekapRawData = []; // [{tanggal, mesin, shift, speed}]
+  let rekapRawData = [];
 
   const RENTANG_SATUAN = {
     'persnelleng': { min: 1, max: 4, label: '1–4' },
@@ -123,7 +124,6 @@
   }
 
   function ymdToDDMMYY(ymdStr) {
-    // 'yyyy-mm-dd' -> 'dd-mm-yy'
     if (!ymdStr || ymdStr.length < 10) return ymdStr;
     const y = ymdStr.substring(2, 4);
     const m = ymdStr.substring(5, 7);
@@ -311,7 +311,6 @@
 
     if (btnLoad) btnLoad.addEventListener('click', loadRekap);
 
-    // Filter -> render ulang lokal (tanpa request)
     const filterShift = $('filterShift');
     const filterKategori = $('filterKategori');
     if (filterShift) filterShift.addEventListener('change', renderRekapFromCache);
@@ -334,7 +333,6 @@
       opt.textContent = ymdToDDMMYY(tgl);
       akhir.appendChild(opt);
     }
-    // Default: H+6
     akhir.value = addDays(start, 6);
   }
 
@@ -355,7 +353,6 @@
     btn.disabled = true;
     btn.textContent = '⏳ Memuat...';
 
-    // Pastikan minSpeed per mesin tersedia (1 request tambahan paling banyak 1x)
     const needMin = (mesinMinMap == null);
     const pMin = needMin ? loadMesinDetail() : Promise.resolve();
 
@@ -385,15 +382,25 @@
   }
 
   function loadMesinDetail() {
-    // getMesin hanya nama; untuk min/max kita butuh detail.
-    // Kita panggil cariSPK sekali? Tidak efisien.
-    // Solusi ringan: minta detail via aksi getMesinDetail (dibuat di GAS?).
-    // Karena GAS belum punya aksi massal, sementara: pakai min/max yang sudah
-    // tersimpan di mesinInfo saat cariSPK. Untuk rekap, kita pakai data min
-    // yang tersedia lewat request baru nanti. Supaya tidak menambah aksi
-    // backend tanpa persetujuan, kita set mesinMinMap = {} (warna merah nonaktif).
-    mesinMinMap = {};
-    return Promise.resolve();
+    // Panggil getMesinDetail (aksi baru di GAS) sekali.
+    // Kalau belum tersedia di GAS, biarkan kosong agar tidak error.
+    return callGAS({ action: 'getMesinDetail' })
+      .then(function (res) {
+        if (!res || !res.success || !res.data) {
+          mesinMinMap = {};
+          return;
+        }
+        const map = {};
+        res.data.forEach(function (row) {
+          const nama = String(row.mesin || '').trim();
+          if (!nama) return;
+          map[nama] = (row.minSpeed != null ? Number(row.minSpeed) : null);
+        });
+        mesinMinMap = map;
+      })
+      .catch(function () {
+        mesinMinMap = {};
+      });
   }
 
   function getCheckedValues(containerId) {
@@ -422,7 +429,6 @@
     const shiftChecked = getCheckedValues('filterShift');
     const katChecked = getCheckedValues('filterKategori');
 
-    // Kalau tidak ada shift dicentang, kosongkan
     if (shiftChecked.length === 0) {
       thead.innerHTML = '';
       tbody.innerHTML = '';
@@ -431,7 +437,6 @@
       return;
     }
 
-    // Daftar 7 tanggal
     const tanggalList = [];
     for (let i = 0; i < 7; i++) {
       const tgl = addDays(awal, i);
@@ -439,24 +444,12 @@
       tanggalList.push(tgl);
     }
 
-    // Filter baris mesin berdasarkan kategori
-    const mesinSet = {};
-    rekapRawData.forEach(function (r) {
-      const kat = kategoriMesin[r.mesin] || 'LAIN';
-      if (katChecked.indexOf(kat) === -1 && katChecked.indexOf('LAIN') === -1) {
-        // kalau kategori LAIN tidak ada di checkbox, skip
-        if (!(kat === 'LAIN' && katChecked.length === 3)) return;
-      }
-      mesinSet[r.mesin] = true;
-    });
-
-    // Selalu tampilkan semua mesin terdaftar (biar baris stabil), filter kategori
     const mesinList = daftarMesin.filter(function (m) {
       const kat = kategoriMesin[m] || 'LAIN';
       if (kat === 'PP') return katChecked.indexOf('PP') !== -1;
       if (kat === 'PE') return katChecked.indexOf('PE') !== -1;
       if (kat === 'HD') return katChecked.indexOf('HD') !== -1;
-      return false; // LAIN tidak ditampilkan
+      return false;
     });
 
     if (mesinList.length === 0) {
@@ -467,7 +460,6 @@
       return;
     }
 
-    // Susun data: map[mesin][tanggal][shift] = [speed, ...]
     const map = {};
     rekapRawData.forEach(function (r) {
       if (shiftChecked.indexOf(r.shift) === -1) return;
@@ -477,7 +469,7 @@
       map[r.mesin][r.tanggal][r.shift].push(r.speed);
     });
 
-    // Bangun header (2 baris: tanggal + shift)
+    // Header
     thead.innerHTML = '';
     const trTop = document.createElement('tr');
     const thMesinTop = document.createElement('th');
@@ -506,7 +498,7 @@
     });
     thead.appendChild(trBottom);
 
-    // Bangun body
+    // Body
     tbody.innerHTML = '';
     mesinList.forEach(function (mesin) {
       const tr = document.createElement('tr');
@@ -516,7 +508,7 @@
       tdMesin.textContent = mesin;
       tr.appendChild(tdMesin);
 
-      const minSpeed = mesinMinMap[mesin] != null ? mesinMinMap[mesin] : null;
+      const minSpeed = (mesinMinMap && mesinMinMap[mesin] != null) ? mesinMinMap[mesin] : null;
 
       tanggalList.forEach(function (tgl) {
         shiftChecked.forEach(function (sh) {
@@ -527,7 +519,6 @@
           if (arr.length === 0) {
             td.textContent = '—';
           } else {
-            // Normalisasi angka untuk cek min
             let hasBelowMin = false;
             if (minSpeed != null) {
               arr.forEach(function (s) {
