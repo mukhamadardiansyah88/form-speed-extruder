@@ -20,7 +20,7 @@
 </head>
 <body>
 
-  <!-- BACKGROUND ANIMASI FUTURISTIK -->
+  <!-- BACKGROUND (statis) -->
   <div class="bg-anim"></div>
   <div class="grid-overlay"></div>
   <div class="scanline"></div>
@@ -37,66 +37,150 @@
       <div class="subtitle">Production Speed Input System</div>
     </header>
 
-    <!-- PANEL KONTROL -->
-    <div class="panel">
-      <div class="panel-title">Kontrol Produksi</div>
-      <div class="form-row">
-        <div class="form-group">
-          <label for="tanggal">Tanggal</label>
-          <input type="date" id="tanggal">
-        </div>
-        <div class="form-group">
-          <label for="shift">Shift</label>
-          <select id="shift">
-            <option value="SHIFT-PAGI">SHIFT-PAGI</option>
-            <option value="SHIFT-SORE">SHIFT-SORE</option>
-            <option value="SHIFT-MALAM">SHIFT-MALAM</option>
-          </select>
-        </div>
-      </div>
+    <!-- TOGGLE TAB -->
+    <div class="tab-switch" role="tablist">
+      <button class="tab-btn active" id="tabForm" data-tab="form" type="button">Input Speed</button>
+      <button class="tab-btn" id="tabRekap" data-tab="rekap" type="button">Rekap Speed</button>
     </div>
 
-    <!-- PANEL RANGKUMAN MESIN AKTIF -->
-    <div class="panel">
-      <div class="panel-title">Rangkuman Mesin Aktif</div>
-      <div class="rangkuman" id="rangkumanMesin">
-        <div class="rangkuman-row r-p">
-          <span class="r-label">PP</span>
-          <span class="r-value"><span id="rPP">0</span> Mesin</span>
-        </div>
-        <div class="rangkuman-row r-e">
-          <span class="r-label">PE</span>
-          <span class="r-value"><span id="rPE">0</span> Mesin</span>
-        </div>
-        <div class="rangkuman-row r-h">
-          <span class="r-label">HD</span>
-          <span class="r-value"><span id="rHD">0</span> Mesin</span>
-        </div>
-        <div class="rangkuman-line"></div>
-        <div class="rangkuman-row r-total">
-          <span class="r-label">Total</span>
-          <span class="r-value"><span id="rTotal">0</span> Mesin</span>
+    <!-- ============================================ -->
+    <!-- HALAMAN 1: FORM INPUT                        -->
+    <!-- ============================================ -->
+    <div id="pageForm">
+
+      <!-- PANEL KONTROL -->
+      <div class="panel">
+        <div class="panel-title">Kontrol Produksi</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="tanggal">Tanggal</label>
+            <input type="date" id="tanggal">
+          </div>
+          <div class="form-group">
+            <label for="shift">Shift</label>
+            <select id="shift">
+              <option value="SHIFT-PAGI">SHIFT-PAGI</option>
+              <option value="SHIFT-SORE">SHIFT-SORE</option>
+              <option value="SHIFT-MALAM">SHIFT-MALAM</option>
+            </select>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- PANEL MESIN -->
-    <div class="panel">
-      <div class="panel-title">Daftar Mesin</div>
-      <div id="mesinContainer">
-        <div class="loading-wrap">
-          <span class="loading"></span> Memuat daftar mesin...
+      <!-- PANEL RANGKUMAN MESIN AKTIF -->
+      <div class="panel">
+        <div class="panel-title">Rangkuman Mesin Aktif</div>
+        <div class="rangkuman" id="rangkumanMesin">
+          <div class="rangkuman-row r-p">
+            <span class="r-label">PP</span>
+            <span class="r-value"><span id="rPP">0</span> Mesin</span>
+          </div>
+          <div class="rangkuman-row r-e">
+            <span class="r-label">PE</span>
+            <span class="r-value"><span id="rPE">0</span> Mesin</span>
+          </div>
+          <div class="rangkuman-row r-h">
+            <span class="r-label">HD</span>
+            <span class="r-value"><span id="rHD">0</span> Mesin</span>
+          </div>
+          <div class="rangkuman-line"></div>
+          <div class="rangkuman-row r-total">
+            <span class="r-label">Total</span>
+            <span class="r-value"><span id="rTotal">0</span> Mesin</span>
+          </div>
         </div>
       </div>
-    </div>
 
-    <!-- SIMPAN -->
-    <div class="panel">
-      <button class="btn btn-success" id="btnSimpan" disabled>
-        💾 Simpan ke Sheet Inputan
-      </button>
-      <div class="summary" id="summary"></div>
+      <!-- PANEL MESIN -->
+      <div class="panel">
+        <div class="panel-title">Daftar Mesin</div>
+        <div id="mesinContainer">
+          <div class="loading-wrap">
+            <span class="loading"></span> Memuat daftar mesin...
+          </div>
+        </div>
+      </div>
+
+      <!-- SIMPAN -->
+      <div class="panel">
+        <button class="btn btn-success" id="btnSimpan" disabled>
+          💾 Simpan ke Sheet Inputan
+        </button>
+        <div class="summary" id="summary"></div>
+      </div>
+
     </div>
+    <!-- /HALAMAN 1 -->
+
+    <!-- ============================================ -->
+    <!-- HALAMAN 2: REKAP SPEED                       -->
+    <!-- ============================================ -->
+    <div id="pageRekap" class="hidden">
+
+      <!-- PANEL FILTER & RENTANG -->
+      <div class="panel">
+        <div class="panel-title">Rentang Rekap</div>
+        <div class="form-row">
+          <div class="form-group">
+            <label for="rekapTanggalAwal">Tanggal Awal</label>
+            <input type="date" id="rekapTanggalAwal">
+          </div>
+          <div class="form-group">
+            <label for="rekapTanggalAkhir">Tanggal Akhir (H+6)</label>
+            <select id="rekapTanggalAkhir">
+              <!-- diisi app.js -->
+            </select>
+          </div>
+        </div>
+
+        <div class="form-row" style="margin-top:14px;">
+          <div class="form-group">
+            <label>Shift</label>
+            <div class="multi-check" id="filterShift">
+              <label class="chk"><input type="checkbox" value="SHIFT-PAGI" checked> Pagi</label>
+              <label class="chk"><input type="checkbox" value="SHIFT-SORE" checked> Sore</label>
+              <label class="chk"><input type="checkbox" value="SHIFT-MALAM" checked> Malam</label>
+            </div>
+          </div>
+          <div class="form-group">
+            <label>Kategori</label>
+            <div class="multi-check" id="filterKategori">
+              <label class="chk"><input type="checkbox" value="PP" checked> PP</label>
+              <label class="chk"><input type="checkbox" value="PE" checked> PE</label>
+              <label class="chk"><input type="checkbox" value="HD" checked> HD</label>
+            </div>
+          </div>
+        </div>
+
+        <div class="modal-actions" style="margin-top:14px;">
+          <button class="btn btn-primary" id="btnLoadRekap" type="button">Tampilkan Rekap</button>
+        </div>
+      </div>
+
+      <!-- PANEL LEGENDA -->
+      <div class="panel">
+        <div class="panel-title">Legenda</div>
+        <div class="legend">
+          <span class="legend-item"><span class="legend-swatch swatch-warn"></span> &gt;1 data dalam cell</span>
+          <span class="legend-item"><span class="legend-swatch swatch-danger"></span> Speed di bawah Min</span>
+        </div>
+      </div>
+
+      <!-- PANEL TABEL REKAP -->
+      <div class="panel">
+        <div class="panel-title">Tabel Rekap</div>
+        <div class="rekap-scroll" id="rekapScroll">
+          <div class="rekap-empty" id="rekapEmpty">Pilih rentang tanggal lalu tekan "Tampilkan Rekap".</div>
+          <table class="rekap-table hidden" id="rekapTable">
+            <thead id="rekapThead"></thead>
+            <tbody id="rekapTbody"></tbody>
+          </table>
+        </div>
+        <div class="summary" id="rekapSummary"></div>
+      </div>
+
+    </div>
+    <!-- /HALAMAN 2 -->
 
     <!-- FOOTER CREDIT -->
     <footer class="footer-credit">
@@ -179,9 +263,7 @@
         <button class="close-btn" id="btnCloseList" type="button">✕</button>
       </div>
 
-      <div class="list-container" id="listContainer">
-        <!-- kartu data di-generate app.js -->
-      </div>
+      <div class="list-container" id="listContainer"></div>
 
       <div class="modal-actions" style="margin-top:14px;">
         <button class="btn btn-primary btn-add-row" id="btnTambahBaris" type="button">
