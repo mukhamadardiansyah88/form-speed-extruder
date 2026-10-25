@@ -8,7 +8,8 @@
    - Beep sukses/gagal saat cari SPK.
    - Loading sync = overlay full screen (neon).
    - Rangkuman mesin aktif per jenis (PP/PE/HD) + total.
-   - Debounce cariSPK (400ms) untuk mengurangi request.
+   - Debounce cariSPK (400ms) & validasi speed (250ms).
+   - Validasi satuan (error, OK disable) dan Min/Max (warning).
    ============================================================ */
 
 (function () {
@@ -28,6 +29,13 @@
   let toastTimer = null;
   let lookupSeq = 0;
   let lookupDebounceTimer = null;
+  let speedDebounceTimer = null;
+
+  // Info mesin dari GAS (satuan/min/max)
+  let currentMesinInfo = { satuan: '', minSpeed: null, maxSpeed: null };
+  let speedError = false;    // satuan salah -> disable OK
+  let speedWarning = false;  // min/max -> OK tetap aktif
+  let lastSpeedStatus = 'none'; // 'none' | 'warning' | 'error'
 
   let formMode = 'tambah';
   let editId = null;
@@ -42,12 +50,15 @@
 
   let isSyncing = false;
 
-  // Cache angka rangkuman terakhir (untuk animasi pop)
   let lastRangkuman = { pp: -1, pe: -1, hd: -1, total: -1 };
-
-  // Cache ringan untuk mengurangi render ganda
   let lastSummaryText = '';
-  let lastMesinHash = '';
+
+  // Rentang satuan (hardcode, ringan)
+  const RENTANG_SATUAN = {
+    'persnelleng': { min: 1, max: 4, label: '1–4' },
+    'hz':          { min: 4.0001, max: 60, label: '4,0001–60' },
+    'rpm':         { min: 60.0001, max: 1800, label: '60,0001–1800' }
+  };
 
   /* ------------------------------------------------------------
      UTIL
@@ -66,11 +77,6 @@
     toastTimer = setTimeout(function () { t.classList.remove('show'); }, 2800);
   }
 
-  function cssEscape(str) {
-    if (window.CSS && CSS.escape) return CSS.escape(str);
-    return String(str).replace(/["\\]/g, '\\$&');
-  }
-
   function getTahunDariTanggal() {
     const val = $('tanggal').value;
     if (val && val.length >= 4) return val.substring(0, 4);
@@ -79,6 +85,20 @@
 
   function getTanggalShift() {
     return { tanggal: $('tanggal').value, shift: $('shift').value };
+  }
+
+  function speedKeAngka(str) {
+    if (str == null) return null;
+    const s = String(str).trim().replace(',', '.');
+    if (s === '') return null;
+    const n = Number(s);
+    return isNaN(n) ? null : n;
+  }
+
+  function vibrate() {
+    if (navigator.vibrate) {
+      try { navigator.vibrate([300, 100, 300, 100, 500, 200, 100, 300]); } catch (e) {}
+    }
   }
 
   /* ------------------------------------------------------------
@@ -161,15 +181,10 @@
         }
       }
 
-      window[cbName] = function (data) {
-        cleanup();
-        resolve(data);
-      };
+      window[cbName] = function (data) { cleanup(); resolve(data); };
 
       const qs = new URLSearchParams(params).toString();
-      const url = CONFIG.GAS_URL +
-        '?callback=' + encodeURIComponent(cbName) +
-        '&' + qs;
+      const url = CONFIG.GAS_URL + '?callback=' + encodeURIComponent(cbName) + '&' + qs;
 
       script.src = url;
       script.onerror = function () {
@@ -177,19 +192,13 @@
         reject(new Error('JSONP gagal — cek koneksi atau URL GAS'));
       };
       script.onload = function () {
-        if (!done) {
-          cleanup();
-          reject(new Error('Response GAS tidak memanggil callback'));
-        }
+        if (!done) { cleanup(); reject(new Error('Response GAS tidak memanggil callback')); }
       };
 
       document.body.appendChild(script);
 
       timeoutId = setTimeout(function () {
-        if (!done) {
-          cleanup();
-          reject(new Error('JSONP timeout'));
-        }
+        if (!done) { cleanup(); reject(new Error('JSONP timeout')); }
       }, 12000);
     });
   }
@@ -379,7 +388,6 @@
         refreshMesinButtons();
         updateSummary();
 
-        // Render list hanya kalau overlay list terbuka
         const overlayList = $('overlayList');
         if (overlayList && overlayList.classList.contains('active') && listMesin) {
           renderList(listMesin);
@@ -600,6 +608,10 @@
     currentKategori = kategoriMesin[namaMesin] || 'LAIN';
     currentSPKData = null;
     currentSPKValid = false;
+    currentMesinInfo = { satuan: '', minSpeed: null, maxSpeed: null };
+    speedError = false;
+    speedWarning = false;
+    lastSpeedStatus = 'none';
     formOriginList = !!fromList;
 
     const title = $('modalTitle');
@@ -632,6 +644,8 @@
     if (initSPK) onSPKInputChange(true);
     else $('btnOk').disabled = true;
 
+    if (initSpeed) onSpeedChange(true);
+
     const overlay = $('overlayInput');
     if (overlay) overlay.classList.add('active');
     setTimeout(function () { spkInput.focus(); }, 120);
@@ -647,12 +661,17 @@
     currentKategori = null;
     currentSPKData = null;
     currentSPKValid = false;
+    currentMesinInfo = { satuan: '', minSpeed: null, maxSpeed: null };
+    speedError = false;
+    speedWarning = false;
+    lastSpeedStatus = 'none';
     editId = null;
     pendingEditIndex = null;
     formMode = 'tambah';
     formOriginList = false;
 
     if (lookupDebounceTimer) { clearTimeout(lookupDebounceTimer); lookupDebounceTimer = null; }
+    if (speedDebounceTimer) { clearTimeout(speedDebounceTimer); speedDebounceTimer = null; }
 
     if (wasFromList && listMesin) {
       const overlayList = $('overlayList');
@@ -668,7 +687,7 @@
     const box = $('spkInfo');
     const val = $('spkInfoValue');
     if (!box || !val) return;
-    box.classList.remove('error', 'success');
+    box.classList.remove('error', 'success', 'warning');
     val.textContent = '—';
   }
 
@@ -676,8 +695,9 @@
     const box = $('spkInfo');
     const val = $('spkInfoValue');
     if (!box || !val) return;
-    box.classList.remove('error', 'success');
+    box.classList.remove('error', 'success', 'warning');
     if (state === 'error') box.classList.add('error');
+    if (state === 'warning') box.classList.add('warning');
     if (state === 'success') box.classList.add('success');
     val.textContent = text;
   }
@@ -698,19 +718,16 @@
       resetSPKInfo();
       currentSPKData = null;
       currentSPKValid = false;
-      updateOkState();
+      currentMesinInfo = { satuan: '', minSpeed: null, maxSpeed: null };
+      validateSpeed();
       return;
     }
 
     setSPKInfo('Mencari No SPK ' + noSPK + ' ...', '');
-    $('btnOk').disabled = true;
 
     if (lookupDebounceTimer) { clearTimeout(lookupDebounceTimer); lookupDebounceTimer = null; }
 
-    if (immediate) {
-      runSPKLookup(noSPK);
-      return;
-    }
+    if (immediate) { runSPKLookup(noSPK); return; }
 
     lookupDebounceTimer = setTimeout(function () {
       lookupDebounceTimer = null;
@@ -728,9 +745,10 @@
   function runSPKLookup(noSPK) {
     const tahun = getTahunDariTanggal();
     const kategori = currentKategori;
+    const mesin = currentMesin;
     const seq = ++lookupSeq;
 
-    callGAS({ action: 'cariSPK', noSPK: noSPK, kategori: kategori, tahun: tahun })
+    callGAS({ action: 'cariSPK', noSPK: noSPK, kategori: kategori, tahun: tahun, mesin: mesin })
       .then(function (res) {
         if (seq !== lookupSeq) return;
         handleLookupResult(res);
@@ -740,60 +758,170 @@
         currentSPKData = null;
         currentSPKValid = false;
         setSPKInfo('Error: ' + (err && err.message ? err.message : err), 'error');
-        playBeepFail();
-        updateOkState();
+        playBeepFail(); vibrate();
+        validateSpeed();
       });
   }
 
   function handleLookupResult(res) {
+    // Ambil info mesin walau SPK gagal
+    if (res && res.mesinInfo) {
+      currentMesinInfo = {
+        satuan: res.mesinInfo.satuan || '',
+        minSpeed: (res.mesinInfo.minSpeed != null ? res.mesinInfo.minSpeed : null),
+        maxSpeed: (res.mesinInfo.maxSpeed != null ? res.mesinInfo.maxSpeed : null)
+      };
+    } else {
+      currentMesinInfo = { satuan: '', minSpeed: null, maxSpeed: null };
+    }
+
     if (!res || !res.success) {
       currentSPKData = null; currentSPKValid = false;
       setSPKInfo((res && res.error) || 'Gagal mencari SPK.', 'error');
-      playBeepFail(); updateOkState();
+      playBeepFail(); vibrate();
+      validateSpeed();
       return;
     }
     if (!res.found) {
       currentSPKData = null; currentSPKValid = false;
       setSPKInfo(res.error || 'No SPK tidak ditemukan.', 'error');
-      playBeepFail(); updateOkState();
+      playBeepFail(); vibrate();
+      validateSpeed();
       return;
     }
     if (!res.valid) {
       currentSPKData = res.data || null; currentSPKValid = false;
       setSPKInfo(res.error || 'Jenis plastik tidak cocok.', 'error');
-      playBeepFail(); updateOkState();
+      playBeepFail(); vibrate();
+      validateSpeed();
       return;
     }
 
     currentSPKData = res.data;
     currentSPKValid = true;
-    const teks = 'Order ' + res.data.jenisPlastik + ' ' + res.data.tebal + ' x ' + res.data.lebar;
+    const teks = formatSPKInfo(res.data);
     setSPKInfo(teks, 'success');
     playBeepSuccess();
-    updateOkState();
+    validateSpeed(true); // sukses SPK, jangan timpa info kecuali perlu
   }
 
-  function updateOkState() {
-    const speedOk = $('speedInput').value.trim() !== '';
-    $('btnOk').disabled = !(currentSPKValid && speedOk);
+  function formatSPKInfo(d) {
+    const lebar = (d.lebar || '').trim();
+    const lipat = (d.lipat || '').trim();
+    let ukuran = '';
+    if (lebar && lipat) ukuran = lebar + '/' + lipat;
+    else if (lebar) ukuran = lebar;
+    else if (lipat) ukuran = '?/' + lipat;
+    else ukuran = '—';
+
+    return 'Order ' + d.jenisPlastik + ' ' + d.tebal + ' x ' + ukuran;
   }
 
   /* ------------------------------------------------------------
-     SPEED
+     VALIDASI SPEED (satuan error, min/max warning)
      ------------------------------------------------------------ */
-  function onSpeedChange() {
+  function onSpeedChange(immediate) {
     const el = $('speedInput');
     let v = el.value;
+
     v = v.replace(/\./g, ',');
     v = v.replace(/[^0-9,]/g, '');
+
     const firstComma = v.indexOf(',');
     if (firstComma !== -1) {
       const head = v.substring(0, firstComma + 1);
       const tail = v.substring(firstComma + 1).replace(/,/g, '');
       v = head + tail;
     }
+
     if (v !== el.value) el.value = v;
+
+    if (speedDebounceTimer) { clearTimeout(speedDebounceTimer); speedDebounceTimer = null; }
+
+    if (immediate) { validateSpeed(); return; }
+    speedDebounceTimer = setTimeout(function () {
+      speedDebounceTimer = null;
+      validateSpeed();
+    }, 250);
+  }
+
+  function validateSpeed(fromSPKSuccess) {
+    const el = $('speedInput');
+    const raw = (el.value || '').trim();
+    const nilai = speedKeAngka(raw);
+
+    speedError = false;
+    speedWarning = false;
+
+    // Kosong: hanya update tombol berdasarkan SPK
+    if (raw === '' || nilai === null) {
+      if (!fromSPKSuccess) {
+        // Jangan timpa info SPK success saat speed kosong
+        if (!currentSPKValid) {
+          // biarkan pesan SPK yang sudah ada
+        }
+      }
+      lastSpeedStatus = 'none';
+      updateOkState();
+      return;
+    }
+
+    // 1. Validasi satuan (error) — hanya kalau satuan terisi
+    const satuanKey = String(currentMesinInfo.satuan || '').trim().toLowerCase();
+    if (satuanKey !== '' && RENTANG_SATUAN[satuanKey]) {
+      const r = RENTANG_SATUAN[satuanKey];
+      if (nilai < r.min || nilai > r.max) {
+        speedError = true;
+        const labelSatuan = currentMesinInfo.satuan;
+        setSPKInfo(
+          'Speed ' + raw + ' di luar rentang ' + labelSatuan + ' (' + r.label + ')',
+          'error'
+        );
+        if (lastSpeedStatus !== 'error') { playBeepFail(); vibrate(); }
+        lastSpeedStatus = 'error';
+        updateOkState();
+        return;
+      }
+    }
+
+    // 2. Validasi min/max (warning) — hanya kalau dua-duanya terisi
+    const min = currentMesinInfo.minSpeed;
+    const max = currentMesinInfo.maxSpeed;
+    if (min != null && max != null) {
+      if (nilai < min || nilai > max) {
+        speedWarning = true;
+        const satuanTeks = currentMesinInfo.satuan ? ' (' + currentMesinInfo.satuan + ')' : '';
+        let ket = '';
+        if (nilai < min) ket = 'di bawah Min ' + numToComma(min);
+        else ket = 'di atas Max ' + numToComma(max);
+        setSPKInfo(
+          'Speed ' + raw + ' ' + ket + satuanTeks + ' — periksa kembali',
+          'warning'
+        );
+        if (lastSpeedStatus !== 'warning') { playBeepFail(); vibrate(); }
+        lastSpeedStatus = 'warning';
+        updateOkState();
+        return;
+      }
+    }
+
+    // Aman: kalau SPK valid, tampilkan info SPK lagi
+    if (currentSPKValid && currentSPKData) {
+      setSPKInfo(formatSPKInfo(currentSPKData), 'success');
+    }
+    lastSpeedStatus = 'none';
     updateOkState();
+  }
+
+  function numToComma(n) {
+    return String(n).replace('.', ',');
+  }
+
+  function updateOkState() {
+    const speedOk = $('speedInput').value.trim() !== '';
+    const spkOk = currentSPKValid;
+    const satuanOk = !speedError;
+    $('btnOk').disabled = !(spkOk && speedOk && satuanOk);
   }
 
   /* ------------------------------------------------------------
@@ -806,7 +934,7 @@
         if (el) {
           el.value = barcode;
           el.dispatchEvent(new Event('input', { bubbles: true }));
-          onSPKInputChange(true); // scan -> langsung lookup
+          onSPKInputChange(true);
         }
       },
       function () { /* closed tanpa scan */ }
@@ -818,6 +946,7 @@
      ------------------------------------------------------------ */
   function onOk() {
     if (!currentSPKValid || !currentSPKData || !currentMesin) return;
+    if (speedError) return;
 
     const speed = $('speedInput').value.trim();
     if (speed === '') return;
@@ -966,30 +1095,27 @@
     btn.disabled = true;
     btn.textContent = '⏳ Menyimpan...';
 
-    callGAS({
-      action: 'tambahBanyak',
-      rows: JSON.stringify(rows)
-    })
-    .then(function (res) {
-      btn.disabled = false;
-      btn.textContent = '💾 Simpan ke Sheet Inputan';
+    callGAS({ action: 'tambahBanyak', rows: JSON.stringify(rows) })
+      .then(function (res) {
+        btn.disabled = false;
+        btn.textContent = '💾 Simpan ke Sheet Inputan';
 
-      if (!res || !res.success) {
-        showToast('Gagal simpan: ' + ((res && res.error) || 'unknown'), 'error');
-        return;
-      }
+        if (!res || !res.success) {
+          showToast('Gagal simpan: ' + ((res && res.error) || 'unknown'), 'error');
+          return;
+        }
 
-      const jumlah = res.jumlah != null ? res.jumlah : rows.length;
-      pendingInput = {};
-      updateSummary();
-      showToast('Berhasil disimpan: ' + jumlah + ' baris.', 'success');
-      syncData();
-    })
-    .catch(function (err) {
-      btn.disabled = false;
-      btn.textContent = '💾 Simpan ke Sheet Inputan';
-      showToast('Gagal simpan: ' + (err && err.message ? err.message : err), 'error');
-    });
+        const jumlah = res.jumlah != null ? res.jumlah : rows.length;
+        pendingInput = {};
+        updateSummary();
+        showToast('Berhasil disimpan: ' + jumlah + ' baris.', 'success');
+        syncData();
+      })
+      .catch(function (err) {
+        btn.disabled = false;
+        btn.textContent = '💾 Simpan ke Sheet Inputan';
+        showToast('Gagal simpan: ' + (err && err.message ? err.message : err), 'error');
+      });
   }
 
   /* ------------------------------------------------------------
@@ -1022,11 +1148,6 @@
     const lama = lastRangkuman[key];
     if (String(el.textContent) === String(nilai)) { lastRangkuman[key] = nilai; return; }
     el.textContent = nilai;
-    if (lama !== -1 && lama !== nilai) {
-      el.classList.remove('pop');
-      void el.offsetWidth;
-      el.classList.add('pop');
-    }
     lastRangkuman[key] = nilai;
   }
 
@@ -1046,7 +1167,6 @@
     const btn = $('btnSimpan');
     if (!el || !btn) return;
 
-    // Rangkuman mesin selalu ikut di-update
     updateRangkuman();
 
     if (isSyncing) {
