@@ -6,7 +6,7 @@
    - Tombol Simpan global = batch pending, 1 request (tambahBanyak).
    - UI kaku: overlay tidak menutup saat klik luar / Escape.
    - Beep sukses/gagal saat cari SPK.
-   - Loading sync = overlay full screen (neon).
+   - Loading sync = overlay full screen (neon), aktif sejak reload.
    - Rangkuman mesin aktif per jenis (PP/PE/HD) + total.
    - Debounce cariSPK (400ms).
    - Validasi satuan instan; Min/Max tunda 800ms.
@@ -56,10 +56,8 @@
   let lastRangkuman = { pp: -1, pe: -1, hd: -1, total: -1 };
   let lastSummaryText = '';
 
-  // Cache minSpeed per mesin (untuk rekap)
   let mesinMinMap = null;
 
-  // State rekap
   let rekapLoaded = false;
   let rekapRawData = [];
 
@@ -129,7 +127,6 @@
   }
 
   function ymdToDDMMYY(ymdStr) {
-    // Untuk tabel: dd-mm-yy
     if (!ymdStr || ymdStr.length < 10) return ymdStr;
     const y = ymdStr.substring(2, 4);
     const m = ymdStr.substring(5, 7);
@@ -138,7 +135,6 @@
   }
 
   function ymdToLocale(ymdStr) {
-    // Untuk combo: ikuti locale browser (samakan dgn date picker)
     if (!ymdStr || ymdStr.length < 10) return ymdStr;
     try {
       const d = ymdToDate(ymdStr);
@@ -262,6 +258,13 @@
     initRekapControls();
     ensureSyncOverlay();
     bindEvents();
+
+    // Tampilkan overlay penuh sejak awal reload
+    ensureSyncOverlay();
+    const ov = $('syncOverlay');
+    if (ov) ov.classList.add('active');
+    isSyncing = true;
+
     loadDaftarMesin();
   });
 
@@ -322,11 +325,11 @@
     const hMinus6 = addDays(today, -6);
 
     if (awal) {
-      awal.value = hMinus6; // default H-6
+      awal.value = hMinus6;
       awal.addEventListener('change', rebuildComboAkhir);
     }
 
-    rebuildComboAkhir(); // isi combo dari H-6 s/d today, default today
+    rebuildComboAkhir();
 
     if (btnLoad) btnLoad.addEventListener('click', loadRekap);
 
@@ -345,7 +348,6 @@
     const start = awal.value;
     if (!start) return;
 
-    // 7 tanggal: H s/d H+6, default = H+6 (hari ini kalau awal H-6)
     for (let i = 0; i < 7; i++) {
       const tgl = addDays(start, i);
       const opt = document.createElement('option');
@@ -372,7 +374,6 @@
     const btn = $('btnLoadRekap');
     btn.disabled = true;
 
-    // Loading overlay penuh (pakai .sync-overlay yang sudah ada)
     ensureSyncOverlay();
     const ov = $('syncOverlay');
     if (ov) ov.classList.add('active');
@@ -504,7 +505,7 @@
       const th = document.createElement('th');
       th.colSpan = shiftChecked.length;
       th.className = 'th-group';
-      th.textContent = ymdToDDMMYY(tgl); // tabel tetap dd-mm-yy
+      th.textContent = ymdToDDMMYY(tgl);
       trTop.appendChild(th);
     });
     thead.appendChild(trTop);
@@ -661,6 +662,8 @@
         syncData();
       })
       .catch(function (err) {
+        // Sembunyikan overlay penuh (kalau getMesin gagal)
+        hideSyncLoading();
         if (container) {
           container.innerHTML =
             '<div class="loading-wrap" style="color:#ff6b8a;">Gagal memuat mesin: ' +
@@ -687,8 +690,9 @@
      ------------------------------------------------------------ */
   function syncData() {
     const ctx = getTanggalShift();
-    if (!ctx.tanggal || !ctx.shift) return;
+    if (!ctx.tanggal || !ctx.shift) { hideSyncLoading(); return; }
 
+    // Overlay sudah aktif sejak reload; tetap panggil untuk state konsisten
     showSyncLoading();
 
     callGAS({ action: 'getData', tanggal: ctx.tanggal, shift: ctx.shift })
@@ -779,7 +783,7 @@
     });
 
     if (!ada) container.innerHTML = '<div class="loading-wrap">Tidak ada mesin terdaftar.</div>';
-    if (isSyncing) showSyncLoading();
+    // Jangan panggil showSyncLoading di sini — overlay sudah aktif sejak reload.
     updateSummary();
   }
 
