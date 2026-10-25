@@ -893,16 +893,16 @@ select option { background: #0a0f23; color: var(--text-main); }
 }
 
 .rekap-table th, .rekap-table td {
-  border-right: 1px solid rgba(0, 240, 255, 0.22);
-  border-bottom: 1px solid rgba(0, 240, 255, 0.22);
   padding: 8px 10px;
   text-align: center;
   white-space: nowrap;
+  border-right: 1px solid rgba(0, 240, 255, 0.22);
+  border-bottom: 1px solid rgba(0, 240, 255, 0.22);
 }
 
-/* === HEADER: dua baris sticky, tanggal di atas, shift di bawah === */
+/* Header: background opaque supaya tidak tembus saat scroll */
 .rekap-table thead th {
-  background: rgba(0, 20, 40, 0.98);
+  background: #0a1428;
   color: var(--neon-cyan);
   font-weight: 700;
   letter-spacing: 1.5px;
@@ -910,32 +910,36 @@ select option { background: #0a0f23; color: var(--text-main); }
   text-shadow: 0 0 8px rgba(0, 240, 255, 0.5);
 }
 
-/* Baris 1 (tanggal) — top: 0 */
+/* Baris 1 (tanggal) sticky top: 0 */
 .rekap-table thead tr:first-child th {
   position: sticky;
   top: 0;
   z-index: 3;
+  border-bottom: none; /* garis bawah hanya di baris shift */
 }
 
-/* Baris 2 (shift) — menempel di bawah baris tanggal */
+/* Baris 2 (shift) sticky tepat di bawah baris tanggal */
 .rekap-table thead tr:nth-child(2) th {
   position: sticky;
-  top: 37px; /* tinggi baris tanggal; sesuaikan jika padding berubah */
+  top: 36px; /* = tinggi baris tanggal (padding 8 + line 18 + border) */
   z-index: 3;
+  border-bottom: 1px solid rgba(0, 240, 255, 0.45);
 }
 
-/* Header kolom MESIN (kiri atas) — sticky di dua sumbu */
+/* Header MESIN (rowspan 2) — sticky 2 sumbu, garis bawah sejajar baris shift */
 .rekap-table thead th.th-mesin {
   left: 0;
   z-index: 5;
-  background: rgba(0, 20, 40, 1);
+  background: #0a1428;
+  border-bottom: 1px solid rgba(0, 240, 255, 0.45);
 }
 
+/* Kolom mesin di body — sticky kiri */
 .rekap-table td.cell-mesin {
   position: sticky;
   left: 0;
   z-index: 2;
-  background: rgba(0, 20, 40, 0.98);
+  background: #0a1428;
   color: #fff;
   font-weight: 700;
   letter-spacing: 1px;
@@ -944,11 +948,13 @@ select option { background: #0a0f23; color: var(--text-main); }
   border-right: 1px solid rgba(0, 240, 255, 0.35);
 }
 
+/* Baris genap: subtle */
 .rekap-table tbody tr:nth-child(even) td { background: rgba(0, 20, 40, 0.55); }
-.rekap-table tbody tr:nth-child(even) td.cell-mesin { background: rgba(0, 20, 40, 1); }
+.rekap-table tbody tr:nth-child(even) td.cell-mesin { background: #0a1428; }
 
 .rekap-table td.cell-speed { color: #dff7ff; }
 
+/* Highlight isi cell saja */
 .rekap-table td.multi-data {
   background: rgba(255, 215, 0, 0.18) !important;
   color: #ffe98a;
@@ -962,7 +968,7 @@ select option { background: #0a0f23; color: var(--text-main); }
 }
 
 .rekap-table .th-group {
-  border-bottom: 1px solid rgba(255, 0, 224, 0.35);
+  border-bottom: none; /* biar garis horizontal cuma dari baris shift */
 }
 
 .rekap-table .th-shift {
@@ -1006,8 +1012,6 @@ select option { background: #0a0f23; color: var(--text-main); }
   .rekap-table { font-size: 0.75rem; }
   .rekap-table th, .rekap-table td { padding: 6px 6px; }
 
-  /* Tinggi baris tanggal di mobile bisa sedikit berbeda; sesuaikan top shift */
-  .rekap-table thead tr:nth-child(2) th {
-    top: 33px;
-  }
+  /* Tinggi baris tanggal mobile lebih kecil; sesuaikan top */
+  .rekap-table thead tr:nth-child(2) th { top: 32px; }
 }
