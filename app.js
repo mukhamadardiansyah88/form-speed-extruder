@@ -12,6 +12,7 @@
    - Validasi satuan instan; Min/Max tunda 800ms.
    - Halaman 2: Rekap Speed (read-only, rentang 7 hari).
    - Warna merah rekap aktif kalau minSpeed terisi.
+   - Default rekap: H-6 s/d hari ini (label ikut locale).
    ============================================================ */
 
 (function () {
@@ -56,7 +57,7 @@
   let lastSummaryText = '';
 
   // Cache minSpeed per mesin (untuk rekap)
-  let mesinMinMap = null; // { mesin: minSpeed|null }
+  let mesinMinMap = null;
 
   // State rekap
   let rekapLoaded = false;
@@ -68,7 +69,6 @@
     'rpm':         { min: 60.0001, max: 1800, label: '60,0001–1800' }
   };
 
-  const SHIFT_KEYS = ['SHIFT-PAGI', 'SHIFT-SORE', 'SHIFT-MALAM'];
   const SHIFT_LABEL = { 'SHIFT-PAGI': 'PAGI', 'SHIFT-SORE': 'SORE', 'SHIFT-MALAM': 'MALAM' };
 
   /* ------------------------------------------------------------
@@ -123,7 +123,13 @@
     return y + '-' + m + '-' + d;
   }
 
+  function ymdToDate(ymdStr) {
+    const parts = ymdStr.split('-');
+    return new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+  }
+
   function ymdToDDMMYY(ymdStr) {
+    // Untuk tabel: dd-mm-yy
     if (!ymdStr || ymdStr.length < 10) return ymdStr;
     const y = ymdStr.substring(2, 4);
     const m = ymdStr.substring(5, 7);
@@ -131,9 +137,19 @@
     return d + '-' + m + '-' + y;
   }
 
+  function ymdToLocale(ymdStr) {
+    // Untuk combo: ikuti locale browser (samakan dgn date picker)
+    if (!ymdStr || ymdStr.length < 10) return ymdStr;
+    try {
+      const d = ymdToDate(ymdStr);
+      return d.toLocaleDateString();
+    } catch (e) {
+      return ymdStr;
+    }
+  }
+
   function addDays(ymdStr, n) {
-    const parts = ymdStr.split('-');
-    const d = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
+    const d = ymdToDate(ymdStr);
     d.setDate(d.getDate() + n);
     return ymd(d);
   }
@@ -302,12 +318,15 @@
     const akhir = $('rekapTanggalAkhir');
     const btnLoad = $('btnLoadRekap');
 
+    const today = ymd(new Date());
+    const hMinus6 = addDays(today, -6);
+
     if (awal) {
-      awal.value = ymd(new Date());
+      awal.value = hMinus6; // default H-6
       awal.addEventListener('change', rebuildComboAkhir);
     }
 
-    rebuildComboAkhir();
+    rebuildComboAkhir(); // isi combo dari H-6 s/d today, default today
 
     if (btnLoad) btnLoad.addEventListener('click', loadRekap);
 
@@ -326,11 +345,12 @@
     const start = awal.value;
     if (!start) return;
 
+    // 7 tanggal: H s/d H+6, default = H+6 (hari ini kalau awal H-6)
     for (let i = 0; i < 7; i++) {
       const tgl = addDays(start, i);
       const opt = document.createElement('option');
       opt.value = tgl;
-      opt.textContent = ymdToDDMMYY(tgl);
+      opt.textContent = ymdToLocale(tgl);
       akhir.appendChild(opt);
     }
     akhir.value = addDays(start, 6);
@@ -351,7 +371,11 @@
 
     const btn = $('btnLoadRekap');
     btn.disabled = true;
-    btn.textContent = '⏳ Memuat...';
+
+    // Loading overlay penuh (pakai .sync-overlay yang sudah ada)
+    ensureSyncOverlay();
+    const ov = $('syncOverlay');
+    if (ov) ov.classList.add('active');
 
     const needMin = (mesinMinMap == null);
     const pMin = needMin ? loadMesinDetail() : Promise.resolve();
@@ -360,8 +384,8 @@
       return callGAS({ action: 'getRekap', tanggalAwal: tglAwal, tanggalAkhir: tglAkhir });
     })
     .then(function (res) {
+      if (ov) ov.classList.remove('active');
       btn.disabled = false;
-      btn.textContent = 'Tampilkan Rekap';
 
       if (!res || !res.success) {
         showToast('Gagal rekap: ' + ((res && res.error) || 'unknown'), 'error');
@@ -375,15 +399,13 @@
         ymdToDDMMYY(tglAwal) + ' – ' + ymdToDDMMYY(tglAkhir);
     })
     .catch(function (err) {
+      if (ov) ov.classList.remove('active');
       btn.disabled = false;
-      btn.textContent = 'Tampilkan Rekap';
       showToast('Gagal rekap: ' + (err && err.message ? err.message : err), 'error');
     });
   }
 
   function loadMesinDetail() {
-    // Panggil getMesinDetail (aksi baru di GAS) sekali.
-    // Kalau belum tersedia di GAS, biarkan kosong agar tidak error.
     return callGAS({ action: 'getMesinDetail' })
       .then(function (res) {
         if (!res || !res.success || !res.data) {
@@ -482,7 +504,7 @@
       const th = document.createElement('th');
       th.colSpan = shiftChecked.length;
       th.className = 'th-group';
-      th.textContent = ymdToDDMMYY(tgl);
+      th.textContent = ymdToDDMMYY(tgl); // tabel tetap dd-mm-yy
       trTop.appendChild(th);
     });
     thead.appendChild(trTop);
