@@ -890,6 +890,10 @@ select option { background: #0a0f23; color: var(--text-main); }
   min-width: 100%;
   font-family: 'Rajdhani', system-ui, sans-serif;
   font-size: 0.85rem;
+  /* Mencegah seleksi teks di mobile (long press) */
+  user-select: none;
+  -webkit-user-select: none;
+  -ms-user-select: none;
 }
 
 /* Paksa tinggi baris header agar presisi */
@@ -1005,6 +1009,7 @@ select option { background: #0a0f23; color: var(--text-main); }
 #overlayInfo .modal-title {
   color: var(--neon-green);
   text-shadow: 0 0 10px rgba(57, 255, 20, 0.6);
+  font-size: 1.05rem; /* Sedikit lebih kecil agar muat teks panjang */
 }
 
 .info-card {
@@ -1089,4 +1094,6 @@ select option { background: #0a0f23; color: var(--text-main); }
 
   .rekap-table thead tr:first-child th { height: 34px !important; }
   .rekap-table thead tr:nth-child(2) th { height: 34px !important; top: 34px; }
+  
+  #overlayInfo .modal-title { font-size: 0.9rem; }
 }
