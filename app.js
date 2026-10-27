@@ -13,7 +13,7 @@
    - Halaman 2: Rekap Speed (read-only, rentang 7 hari).
    - Warna merah rekap aktif kalau minSpeed terisi.
    - Default rekap: H-6 s/d hari ini (label ikut locale).
-   - Tabel rekap: tambah class highlight header & sel mesin.
+   - Fitur Detail Cell: Long Press (Mobile) / Double Click (Desktop).
    ============================================================ */
 
 (function () {
@@ -61,6 +61,10 @@
 
   let rekapLoaded = false;
   let rekapRawData = [];
+
+  // State Long Press
+  let pressTimer = null;
+  const LONG_PRESS_DURATION = 500;
 
   const RENTANG_SATUAN = {
     'persnelleng': { min: 1, max: 4, label: '1–4' },
@@ -149,6 +153,20 @@
     const d = ymdToDate(ymdStr);
     d.setDate(d.getDate() + n);
     return ymd(d);
+  }
+
+  function formatSPKInfo(d) {
+    const lebar = (d.lebar || '').trim();
+    const lipatRaw = (d.lipat || '').trim();
+    const lipat = (lipatRaw === '' || lipatRaw === '0') ? '' : lipatRaw;
+
+    let ukuran = '';
+    if (lebar && lipat) ukuran = lebar + '/' + lipat;
+    else if (lebar) ukuran = lebar;
+    else if (lipat) ukuran = '?/' + lipat;
+    else ukuran = '—';
+
+    return 'Order ' + d.jenisPlastik + ' ' + d.tebal + ' x ' + ukuran;
   }
 
   /* ------------------------------------------------------------
@@ -489,7 +507,7 @@
       if (!map[r.mesin]) map[r.mesin] = {};
       if (!map[r.mesin][r.tanggal]) map[r.mesin][r.tanggal] = {};
       if (!map[r.mesin][r.tanggal][r.shift]) map[r.mesin][r.tanggal][r.shift] = [];
-      map[r.mesin][r.tanggal][r.shift].push(r.speed);
+      map[r.mesin][r.tanggal][r.shift].push({ id: r.id, speed: r.speed });
     });
 
     // Header
@@ -497,14 +515,14 @@
     const trTop = document.createElement('tr');
     const thMesinTop = document.createElement('th');
     thMesinTop.rowSpan = 2;
-    thMesinTop.className = 'th-mesin header-mesin-top'; // Tambah class header-mesin-top
+    thMesinTop.className = 'th-mesin header-mesin-top';
     thMesinTop.textContent = 'MESIN';
     trTop.appendChild(thMesinTop);
 
     tanggalList.forEach(function (tgl) {
       const th = document.createElement('th');
       th.colSpan = shiftChecked.length;
-      th.className = 'th-group header-date'; // Tambah class header-date
+      th.className = 'th-group header-date';
       th.textContent = ymdToDDMMYY(tgl);
       trTop.appendChild(th);
     });
@@ -514,7 +532,7 @@
     tanggalList.forEach(function () {
       shiftChecked.forEach(function (sh) {
         const th = document.createElement('th');
-        th.className = 'th-shift header-shift'; // Tambah class header-shift
+        th.className = 'th-shift header-shift';
         th.textContent = SHIFT_LABEL[sh] || sh;
         trBottom.appendChild(th);
       });
@@ -527,7 +545,7 @@
       const tr = document.createElement('tr');
 
       const tdMesin = document.createElement('td');
-      tdMesin.className = 'cell-mesin cell-mesin-highlight'; // Tambah class cell-mesin-highlight
+      tdMesin.className = 'cell-mesin cell-mesin-highlight';
       tdMesin.textContent = mesin;
       tr.appendChild(tdMesin);
 
@@ -544,15 +562,40 @@
           } else {
             let hasBelowMin = false;
             if (minSpeed != null) {
-              arr.forEach(function (s) {
-                const n = speedKeAngka(s);
+              arr.forEach(function (item) {
+                const n = speedKeAngka(item.speed);
                 if (n != null && n < minSpeed) hasBelowMin = true;
               });
             }
 
-            td.textContent = arr.join(' · ');
+            td.textContent = arr.map(function(item) { return item.speed; }).join(' · ');
+            
             if (arr.length > 1) td.classList.add('multi-data');
             if (hasBelowMin) td.classList.add('below-min');
+
+            // Simpan ID di dataset untuk keperluan klik
+            const ids = arr.map(function(item) { return item.id; });
+            td.dataset.ids = JSON.stringify(ids);
+            td.classList.add('cell-clickable');
+
+            // Event Listeners untuk Desktop (Double Click) & Mobile (Long Press)
+            td.addEventListener('dblclick', function() {
+              bukaInfoDetail(ids);
+            });
+
+            td.addEventListener('touchstart', function(e) {
+              pressTimer = setTimeout(function() {
+                vibrate();
+                bukaInfoDetail(ids);
+              }, LONG_PRESS_DURATION);
+            }, { passive: true });
+
+            td.addEventListener('touchend', function() {
+              if (pressTimer) clearTimeout(pressTimer);
+            });
+            td.addEventListener('touchmove', function() {
+              if (pressTimer) clearTimeout(pressTimer);
+            });
           }
           tr.appendChild(td);
         });
@@ -563,6 +606,84 @@
 
     table.classList.remove('hidden');
     if (empty) empty.classList.add('hidden');
+  }
+
+  /* ------------------------------------------------------------
+     OVERLAY INFO DETAIL
+     ------------------------------------------------------------ */
+  function bukaInfoDetail(ids) {
+    if (!ids || ids.length === 0) return;
+
+    ensureSyncOverlay();
+    const ov = $('syncOverlay');
+    if (ov) ov.classList.add('active');
+
+    // Karena GAS belum punya getDetailByID batch, kita panggil berurutan
+    // Jika hanya 1 ID, cukup 1 request.
+    let promises = ids.map(function(id) {
+      return callGAS({ action: 'getDetailByID', id: id });
+    });
+
+    Promise.all(promises)
+      .then(function(results) {
+        if (ov) ov.classList.remove('active');
+        
+        const container = $('infoContainer');
+        if (!container) return;
+        container.innerHTML = '';
+
+        let adaData = false;
+        results.forEach(function(res) {
+          if (res && res.success && res.data) {
+            adaData = true;
+            container.appendChild(buildInfoCard(res.data));
+          }
+        });
+
+        if (!adaData) {
+          container.innerHTML = '<div class="list-empty">Data detail tidak ditemukan.</div>';
+        }
+
+        const overlayInfo = $('overlayInfo');
+        if (overlayInfo) overlayInfo.classList.add('active');
+      })
+      .catch(function(err) {
+        if (ov) ov.classList.remove('active');
+        showToast('Gagal memuat detail: ' + (err && err.message ? err.message : err), 'error');
+      });
+  }
+
+  function buildInfoCard(d) {
+    const card = document.createElement('div');
+    card.className = 'info-card';
+
+    // No SPK
+    const r1 = document.createElement('div');
+    r1.className = 'info-row';
+    r1.innerHTML = '<span class="info-label">No SPK</span>' +
+                   '<span class="info-value highlight">' + (d.noSPK || '—') + '</span>';
+    card.appendChild(r1);
+
+    // Order
+    const r2 = document.createElement('div');
+    r2.className = 'info-row';
+    r2.innerHTML = '<span class="info-label">Order</span>' +
+                   '<span class="info-value">' + formatSPKInfo(d) + '</span>';
+    card.appendChild(r2);
+
+    // Speed
+    const r3 = document.createElement('div');
+    r3.className = 'info-row';
+    r3.innerHTML = '<span class="info-label">Speed</span>' +
+                   '<span class="info-value highlight">' + (d.speed || '—') + '</span>';
+    card.appendChild(r3);
+
+    return card;
+  }
+
+  function closeInfoOverlay() {
+    const overlayInfo = $('overlayInfo');
+    if (overlayInfo) overlayInfo.classList.remove('active');
   }
 
   /* ------------------------------------------------------------
@@ -641,6 +762,12 @@
     if (btnCancelConfirm) btnCancelConfirm.addEventListener('click', closeConfirmOverlay);
     const btnYesConfirm = $('btnYesConfirm');
     if (btnYesConfirm) btnYesConfirm.addEventListener('click', onHapusConfirmed);
+
+    // Overlay Info
+    const btnCloseInfo = $('btnCloseInfo');
+    if (btnCloseInfo) btnCloseInfo.addEventListener('click', closeInfoOverlay);
+    const btnTutupInfo = $('btnTutupInfo');
+    if (btnTutupInfo) btnTutupInfo.addEventListener('click', closeInfoOverlay);
   }
 
   /* ------------------------------------------------------------
@@ -1124,20 +1251,6 @@
     setSPKInfo(teks, 'success');
     playBeepSuccess();
     validateSpeed(true);
-  }
-
-  function formatSPKInfo(d) {
-    const lebar = (d.lebar || '').trim();
-    const lipatRaw = (d.lipat || '').trim();
-    const lipat = (lipatRaw === '' || lipatRaw === '0') ? '' : lipatRaw;
-
-    let ukuran = '';
-    if (lebar && lipat) ukuran = lebar + '/' + lipat;
-    else if (lebar) ukuran = lebar;
-    else if (lipat) ukuran = '?/' + lipat;
-    else ukuran = '—';
-
-    return 'Order ' + d.jenisPlastik + ' ' + d.tebal + ' x ' + ukuran;
   }
 
   /* ------------------------------------------------------------
