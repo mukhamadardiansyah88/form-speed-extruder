@@ -894,7 +894,7 @@ select option { background: #0a0f23; color: var(--text-main); }
 
 /* Paksa tinggi baris header agar presisi */
 .rekap-table thead tr:first-child th {
-  height: 36px !important; /* Patokan tinggi mutlak */
+  height: 36px !important;
   padding-top: 0;
   padding-bottom: 0;
   position: sticky;
@@ -913,7 +913,7 @@ select option { background: #0a0f23; color: var(--text-main); }
 }
 
 .rekap-table th, .rekap-table td {
-  padding: 0 10px; /* Vertikal dihandle height */
+  padding: 0 10px;
   text-align: center;
   white-space: nowrap;
   border-right: 1px solid rgba(0, 240, 255, 0.22);
@@ -921,7 +921,7 @@ select option { background: #0a0f23; color: var(--text-main); }
 }
 
 .rekap-table tbody td {
-  height: 32px; /* Tinggi standar baris data */
+  height: 32px;
 }
 
 /* === HEADER HIGHLIGHT HIJAU SOLID === */
@@ -939,7 +939,7 @@ select option { background: #0a0f23; color: var(--text-main); }
 .rekap-table th.header-date,
 .rekap-table th.header-shift,
 .rekap-table th.header-mesin-top {
-  box-shadow: inset 0 -2px 0 #000; /* Garis hitam pekat pemisah header */
+  box-shadow: inset 0 -2px 0 #000;
 }
 
 /* Pojok Kiri Atas (Mesin) - z-index tertinggi */
@@ -973,6 +973,15 @@ select option { background: #0a0f23; color: var(--text-main); }
 /* Data speed */
 .rekap-table td.cell-speed { color: #dff7ff; }
 
+/* Style untuk cell yang bisa diklik (Double click / Long press) */
+.rekap-table td.cell-clickable {
+  cursor: pointer;
+  transition: background 0.2s;
+}
+.rekap-table td.cell-clickable:hover {
+  background: rgba(0, 240, 255, 0.15) !important;
+}
+
 .rekap-table td.multi-data {
   background: rgba(255, 215, 0, 0.18) !important;
   color: #ffe98a;
@@ -983,6 +992,65 @@ select option { background: #0a0f23; color: var(--text-main); }
   background: rgba(255, 46, 99, 0.22) !important;
   color: #ffb3c4;
   box-shadow: inset 0 0 10px rgba(255, 46, 99, 0.35);
+}
+
+/* ============================================================
+   OVERLAY INFO DETAIL (READ ONLY)
+   ============================================================ */
+#overlayInfo .modal {
+  border-color: var(--neon-green);
+  box-shadow: 0 0 40px rgba(57, 255, 20, 0.3), inset 0 0 30px rgba(57, 255, 20, 0.05);
+}
+
+#overlayInfo .modal-title {
+  color: var(--neon-green);
+  text-shadow: 0 0 10px rgba(57, 255, 20, 0.6);
+}
+
+.info-card {
+  background: rgba(0, 20, 40, 0.8);
+  border: 1px solid rgba(57, 255, 20, 0.4);
+  border-radius: 10px;
+  padding: 14px;
+  margin-bottom: 10px;
+  box-shadow: 0 0 12px rgba(57, 255, 20, 0.1);
+}
+
+.info-card:last-child {
+  margin-bottom: 0;
+}
+
+.info-row {
+  display: flex;
+  justify-content: space-between;
+  border-bottom: 1px dashed rgba(0, 240, 255, 0.2);
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+}
+.info-row:last-child {
+  border-bottom: none;
+  padding-bottom: 0;
+  margin-bottom: 0;
+}
+
+.info-label {
+  color: var(--text-dim);
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  font-weight: 700;
+}
+
+.info-value {
+  color: #fff;
+  font-weight: 700;
+  font-size: 0.95rem;
+  text-align: right;
+}
+.info-value.highlight {
+  color: var(--neon-cyan);
+  font-size: 1.1rem;
+  text-shadow: 0 0 8px rgba(0, 240, 255, 0.5);
 }
 
 /* ============================================================
