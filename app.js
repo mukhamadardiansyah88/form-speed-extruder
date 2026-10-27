@@ -14,6 +14,7 @@
    - Warna merah rekap aktif kalau minSpeed terisi.
    - Default rekap: H-6 s/d hari ini (label ikut locale).
    - Fitur Detail Cell: Long Press (Mobile) / Double Click (Desktop).
+   - Judul Overlay Info dinamis & hilangkan kata "Order".
    ============================================================ */
 
 (function () {
@@ -62,7 +63,6 @@
   let rekapLoaded = false;
   let rekapRawData = [];
 
-  // State Long Press
   let pressTimer = null;
   const LONG_PRESS_DURATION = 500;
 
@@ -166,7 +166,8 @@
     else if (lipat) ukuran = '?/' + lipat;
     else ukuran = '—';
 
-    return 'Order ' + d.jenisPlastik + ' ' + d.tebal + ' x ' + ukuran;
+    // Hapus kata "Order "
+    return d.jenisPlastik + ' ' + d.tebal + ' x ' + ukuran;
   }
 
   /* ------------------------------------------------------------
@@ -578,17 +579,28 @@
             td.dataset.ids = JSON.stringify(ids);
             td.classList.add('cell-clickable');
 
-            // Event Listeners untuk Desktop (Double Click) & Mobile (Long Press)
+            // Data konteks untuk judul overlay
+            const contextData = {
+              mesin: mesin,
+              tanggal: ymdToDDMMYY(tgl),
+              shift: SHIFT_LABEL[sh] || sh,
+              ids: ids
+            };
+
+            // Event Listeners untuk Desktop (Double Click)
             td.addEventListener('dblclick', function() {
-              bukaInfoDetail(ids);
+              bukaInfoDetail(contextData);
             });
 
+            // Event Listeners untuk Mobile (Long Press)
             td.addEventListener('touchstart', function(e) {
+              // Mencegah seleksi teks bawaan mobile
+              e.preventDefault(); 
               pressTimer = setTimeout(function() {
                 vibrate();
-                bukaInfoDetail(ids);
+                bukaInfoDetail(contextData);
               }, LONG_PRESS_DURATION);
-            }, { passive: true });
+            }, { passive: false }); // Wajib false agar e.preventDefault bekerja
 
             td.addEventListener('touchend', function() {
               if (pressTimer) clearTimeout(pressTimer);
@@ -611,15 +623,14 @@
   /* ------------------------------------------------------------
      OVERLAY INFO DETAIL
      ------------------------------------------------------------ */
-  function bukaInfoDetail(ids) {
+  function bukaInfoDetail(context) {
+    const ids = context.ids;
     if (!ids || ids.length === 0) return;
 
     ensureSyncOverlay();
     const ov = $('syncOverlay');
     if (ov) ov.classList.add('active');
 
-    // Karena GAS belum punya getDetailByID batch, kita panggil berurutan
-    // Jika hanya 1 ID, cukup 1 request.
     let promises = ids.map(function(id) {
       return callGAS({ action: 'getDetailByID', id: id });
     });
@@ -631,6 +642,12 @@
         const container = $('infoContainer');
         if (!container) return;
         container.innerHTML = '';
+
+        // Update Judul Overlay
+        const titleEl = document.querySelector('#overlayInfo .modal-title');
+        if (titleEl) {
+          titleEl.textContent = 'Detail · ' + context.mesin + ' · ' + context.tanggal + ' · ' + context.shift;
+        }
 
         let adaData = false;
         results.forEach(function(res) {
@@ -664,10 +681,10 @@
                    '<span class="info-value highlight">' + (d.noSPK || '—') + '</span>';
     card.appendChild(r1);
 
-    // Order
+    // Order (tanpa kata Order)
     const r2 = document.createElement('div');
     r2.className = 'info-row';
-    r2.innerHTML = '<span class="info-label">Order</span>' +
+    r2.innerHTML = '<span class="info-label">Spesifikasi</span>' +
                    '<span class="info-value">' + formatSPKInfo(d) + '</span>';
     card.appendChild(r2);
 
