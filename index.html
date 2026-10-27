@@ -147,6 +147,7 @@
         <div class="legend">
           <span class="legend-item"><span class="legend-swatch swatch-warn"></span> &gt;1 data dalam cell</span>
           <span class="legend-item"><span class="legend-swatch swatch-danger"></span> Speed di bawah Min</span>
+          <span class="legend-item"><span style="font-size:10px;color:var(--text-dim)">(Tahan / Klik 2x pada cell untuk detail)</span></span>
         </div>
       </div>
 
@@ -267,10 +268,27 @@
     </div>
   </div>
 
+  <!-- OVERLAY INFO DETAIL (READ ONLY) -->
+  <div class="overlay" id="overlayInfo">
+    <div class="modal">
+      <div class="modal-header">
+        <div class="modal-title">Detail Informasi</div>
+        <button class="close-btn" id="btnCloseInfo" type="button">✕</button>
+      </div>
+      
+      <div class="list-container" id="infoContainer">
+        <!-- Card info akan di-generate oleh JS -->
+      </div>
+
+      <div class="modal-actions" style="margin-top:18px;">
+        <button class="btn btn-primary" id="btnTutupInfo" type="button">Tutup</button>
+      </div>
+    </div>
+  </div>
+
   <div class="toast" id="toast"></div>
 
   <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
-
   <script src="config.js"></script>
   <script src="scanner.js"></script>
   <script src="app.js"></script>
