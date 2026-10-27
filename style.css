@@ -892,71 +892,85 @@ select option { background: #0a0f23; color: var(--text-main); }
   font-size: 0.85rem;
 }
 
+/* Paksa tinggi baris header agar presisi */
+.rekap-table thead tr:first-child th {
+  height: 36px !important; /* Patokan tinggi mutlak */
+  padding-top: 0;
+  padding-bottom: 0;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+/* Baris kedua (Shift) menempel tepat di bawah baris pertama */
+.rekap-table thead tr:nth-child(2) th {
+  height: 36px !important;
+  padding-top: 0;
+  padding-bottom: 0;
+  position: sticky;
+  top: 36px; 
+  z-index: 3;
+}
+
 .rekap-table th, .rekap-table td {
-  padding: 8px 10px;
+  padding: 0 10px; /* Vertikal dihandle height */
   text-align: center;
   white-space: nowrap;
   border-right: 1px solid rgba(0, 240, 255, 0.22);
   border-bottom: 1px solid rgba(0, 240, 255, 0.22);
 }
 
-/* HEADER STICKY */
-.rekap-table thead tr:first-child th {
-  position: sticky;
-  top: 0;
-  z-index: 3;
+.rekap-table tbody td {
+  height: 32px; /* Tinggi standar baris data */
 }
 
-.rekap-table thead tr:nth-child(2) th {
-  position: sticky;
-  top: 36px; /* pas dengan tinggi baris tanggal */
-  z-index: 3;
+/* === HEADER HIGHLIGHT HIJAU SOLID === */
+.rekap-table th.header-date,
+.rekap-table th.header-shift,
+.rekap-table th.header-mesin-top {
+  background-color: var(--neon-green) !important;
+  color: #000 !important;
+  font-weight: 900 !important;
+  border-bottom: none !important; 
+  text-shadow: none !important;
 }
 
-/* POJOK KIRI ATAS (Header Mesin) - z-index lebih tinggi dari yang lain */
+/* Garis bawah tebal untuk semua header */
+.rekap-table th.header-date,
+.rekap-table th.header-shift,
+.rekap-table th.header-mesin-top {
+  box-shadow: inset 0 -2px 0 #000; /* Garis hitam pekat pemisah header */
+}
+
+/* Pojok Kiri Atas (Mesin) - z-index tertinggi */
 .rekap-table thead th.th-mesin {
   left: 0;
   z-index: 10 !important; 
-  border-bottom: none !important;
 }
 
-/* KOLOM PERTAMA DI BODY (Nama Mesin) - sticky kiri */
+/* === KOLOM MESIN HIGHLIGHT PINK SOLID === */
 .rekap-table td.cell-mesin {
   position: sticky;
   left: 0;
-  z-index: 5; /* di bawah header, di atas cell biasa */
+  z-index: 5;
   text-align: left;
   min-width: 84px;
   border-right: 1px solid rgba(0, 240, 255, 0.35);
 }
 
-/* HEADER HIGHLIGHT HIJAU */
-.rekap-table th.header-date,
-.rekap-table th.header-shift,
-.rekap-table th.header-mesin-top {
-  background-color: rgba(57, 255, 20, 0.15) !important;
-  color: var(--neon-green) !important;
-  border-bottom: 1px solid rgba(57, 255, 20, 0.4) !important;
-  text-shadow: 0 0 8px rgba(57, 255, 20, 0.6);
-}
-
-/* BARIS MESIN HIGHLIGHT PINK */
 .rekap-table td.cell-mesin-highlight {
-  background-color: rgba(255, 0, 224, 0.15) !important;
+  background-color: var(--neon-pink) !important;
   color: #fff !important;
-  border-bottom: 1px solid rgba(255, 0, 224, 0.3) !important;
-  text-shadow: 0 0 8px rgba(255, 0, 224, 0.5);
-}
-
-/* Background ganjil/genap body */
-.rekap-table tbody tr:nth-child(even) td {
-  background-color: rgba(0, 20, 40, 0.55);
+  font-weight: 900 !important;
+  border-bottom: 1px solid rgba(0,0,0,0.2) !important;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.8) !important;
 }
 
 .rekap-table tbody tr:nth-child(even) td.cell-mesin-highlight {
-  background-color: rgba(255, 0, 224, 0.18) !important; /* sedikit lebih terang untuk baris genap */
+  background-color: var(--neon-pink) !important;
 }
 
+/* Data speed */
 .rekap-table td.cell-speed { color: #dff7ff; }
 
 .rekap-table td.multi-data {
@@ -1003,9 +1017,8 @@ select option { background: #0a0f23; color: var(--text-main); }
   .tab-btn { font-size: 0.8rem; padding: 10px 6px; letter-spacing: 1px; }
   .rekap-scroll { max-height: 60vh; }
   .rekap-table { font-size: 0.75rem; }
-  .rekap-table th, .rekap-table td { padding: 6px 6px; }
+  .rekap-table th, .rekap-table td { padding: 0 6px; }
 
-  .rekap-table thead tr:nth-child(2) th {
-    top: 33px; /* Penyesuaian tinggi header mobile */
-  }
+  .rekap-table thead tr:first-child th { height: 34px !important; }
+  .rekap-table thead tr:nth-child(2) th { height: 34px !important; top: 34px; }
 }
