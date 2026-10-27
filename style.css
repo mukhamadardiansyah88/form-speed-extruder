@@ -900,61 +900,65 @@ select option { background: #0a0f23; color: var(--text-main); }
   border-bottom: 1px solid rgba(0, 240, 255, 0.22);
 }
 
-/* Header: background opaque supaya tidak tembus saat scroll */
-.rekap-table thead th {
-  background: #0a1428;
-  color: var(--neon-cyan);
-  font-weight: 700;
-  letter-spacing: 1.5px;
-  text-transform: uppercase;
-  text-shadow: 0 0 8px rgba(0, 240, 255, 0.5);
-}
-
-/* Baris 1 (tanggal) sticky top: 0 */
+/* HEADER STICKY */
 .rekap-table thead tr:first-child th {
   position: sticky;
   top: 0;
   z-index: 3;
-  border-bottom: none; /* garis bawah hanya di baris shift */
 }
 
-/* Baris 2 (shift) sticky tepat di bawah baris tanggal */
 .rekap-table thead tr:nth-child(2) th {
   position: sticky;
-  top: 36px; /* = tinggi baris tanggal (padding 8 + line 18 + border) */
+  top: 36px; /* pas dengan tinggi baris tanggal */
   z-index: 3;
-  border-bottom: 1px solid rgba(0, 240, 255, 0.45);
 }
 
-/* Header MESIN (rowspan 2) — sticky 2 sumbu, garis bawah sejajar baris shift */
+/* POJOK KIRI ATAS (Header Mesin) - z-index lebih tinggi dari yang lain */
 .rekap-table thead th.th-mesin {
   left: 0;
-  z-index: 5;
-  background: #0a1428;
-  border-bottom: 1px solid rgba(0, 240, 255, 0.45);
+  z-index: 10 !important; 
+  border-bottom: none !important;
 }
 
-/* Kolom mesin di body — sticky kiri */
+/* KOLOM PERTAMA DI BODY (Nama Mesin) - sticky kiri */
 .rekap-table td.cell-mesin {
   position: sticky;
   left: 0;
-  z-index: 2;
-  background: #0a1428;
-  color: #fff;
-  font-weight: 700;
-  letter-spacing: 1px;
+  z-index: 5; /* di bawah header, di atas cell biasa */
   text-align: left;
   min-width: 84px;
   border-right: 1px solid rgba(0, 240, 255, 0.35);
 }
 
-/* Baris genap: subtle */
-.rekap-table tbody tr:nth-child(even) td { background: rgba(0, 20, 40, 0.55); }
-.rekap-table tbody tr:nth-child(even) td.cell-mesin { background: #0a1428; }
+/* HEADER HIGHLIGHT HIJAU */
+.rekap-table th.header-date,
+.rekap-table th.header-shift,
+.rekap-table th.header-mesin-top {
+  background-color: rgba(57, 255, 20, 0.15) !important;
+  color: var(--neon-green) !important;
+  border-bottom: 1px solid rgba(57, 255, 20, 0.4) !important;
+  text-shadow: 0 0 8px rgba(57, 255, 20, 0.6);
+}
+
+/* BARIS MESIN HIGHLIGHT PINK */
+.rekap-table td.cell-mesin-highlight {
+  background-color: rgba(255, 0, 224, 0.15) !important;
+  color: #fff !important;
+  border-bottom: 1px solid rgba(255, 0, 224, 0.3) !important;
+  text-shadow: 0 0 8px rgba(255, 0, 224, 0.5);
+}
+
+/* Background ganjil/genap body */
+.rekap-table tbody tr:nth-child(even) td {
+  background-color: rgba(0, 20, 40, 0.55);
+}
+
+.rekap-table tbody tr:nth-child(even) td.cell-mesin-highlight {
+  background-color: rgba(255, 0, 224, 0.18) !important; /* sedikit lebih terang untuk baris genap */
+}
 
 .rekap-table td.cell-speed { color: #dff7ff; }
 
-/* Highlight isi cell saja */
 .rekap-table td.multi-data {
   background: rgba(255, 215, 0, 0.18) !important;
   color: #ffe98a;
@@ -965,17 +969,6 @@ select option { background: #0a0f23; color: var(--text-main); }
   background: rgba(255, 46, 99, 0.22) !important;
   color: #ffb3c4;
   box-shadow: inset 0 0 10px rgba(255, 46, 99, 0.35);
-}
-
-.rekap-table .th-group {
-  border-bottom: none; /* biar garis horizontal cuma dari baris shift */
-}
-
-.rekap-table .th-shift {
-  font-size: 0.72rem;
-  letter-spacing: 1px;
-  color: var(--neon-pink);
-  text-shadow: 0 0 8px rgba(255, 0, 224, 0.45);
 }
 
 /* ============================================================
@@ -1012,6 +1005,7 @@ select option { background: #0a0f23; color: var(--text-main); }
   .rekap-table { font-size: 0.75rem; }
   .rekap-table th, .rekap-table td { padding: 6px 6px; }
 
-  /* Tinggi baris tanggal mobile lebih kecil; sesuaikan top */
-  .rekap-table thead tr:nth-child(2) th { top: 32px; }
+  .rekap-table thead tr:nth-child(2) th {
+    top: 33px; /* Penyesuaian tinggi header mobile */
+  }
 }
