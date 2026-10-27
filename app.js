@@ -13,6 +13,7 @@
    - Halaman 2: Rekap Speed (read-only, rentang 7 hari).
    - Warna merah rekap aktif kalau minSpeed terisi.
    - Default rekap: H-6 s/d hari ini (label ikut locale).
+   - Tabel rekap: tambah class highlight header & sel mesin.
    ============================================================ */
 
 (function () {
@@ -259,7 +260,6 @@
     ensureSyncOverlay();
     bindEvents();
 
-    // Tampilkan overlay penuh sejak awal reload
     ensureSyncOverlay();
     const ov = $('syncOverlay');
     if (ov) ov.classList.add('active');
@@ -497,14 +497,14 @@
     const trTop = document.createElement('tr');
     const thMesinTop = document.createElement('th');
     thMesinTop.rowSpan = 2;
-    thMesinTop.className = 'th-mesin';
+    thMesinTop.className = 'th-mesin header-mesin-top'; // Tambah class header-mesin-top
     thMesinTop.textContent = 'MESIN';
     trTop.appendChild(thMesinTop);
 
     tanggalList.forEach(function (tgl) {
       const th = document.createElement('th');
       th.colSpan = shiftChecked.length;
-      th.className = 'th-group';
+      th.className = 'th-group header-date'; // Tambah class header-date
       th.textContent = ymdToDDMMYY(tgl);
       trTop.appendChild(th);
     });
@@ -514,7 +514,7 @@
     tanggalList.forEach(function () {
       shiftChecked.forEach(function (sh) {
         const th = document.createElement('th');
-        th.className = 'th-shift';
+        th.className = 'th-shift header-shift'; // Tambah class header-shift
         th.textContent = SHIFT_LABEL[sh] || sh;
         trBottom.appendChild(th);
       });
@@ -527,7 +527,7 @@
       const tr = document.createElement('tr');
 
       const tdMesin = document.createElement('td');
-      tdMesin.className = 'cell-mesin';
+      tdMesin.className = 'cell-mesin cell-mesin-highlight'; // Tambah class cell-mesin-highlight
       tdMesin.textContent = mesin;
       tr.appendChild(tdMesin);
 
@@ -662,7 +662,6 @@
         syncData();
       })
       .catch(function (err) {
-        // Sembunyikan overlay penuh (kalau getMesin gagal)
         hideSyncLoading();
         if (container) {
           container.innerHTML =
@@ -692,7 +691,6 @@
     const ctx = getTanggalShift();
     if (!ctx.tanggal || !ctx.shift) { hideSyncLoading(); return; }
 
-    // Overlay sudah aktif sejak reload; tetap panggil untuk state konsisten
     showSyncLoading();
 
     callGAS({ action: 'getData', tanggal: ctx.tanggal, shift: ctx.shift })
@@ -783,7 +781,6 @@
     });
 
     if (!ada) container.innerHTML = '<div class="loading-wrap">Tidak ada mesin terdaftar.</div>';
-    // Jangan panggil showSyncLoading di sini — overlay sudah aktif sejak reload.
     updateSummary();
   }
 
