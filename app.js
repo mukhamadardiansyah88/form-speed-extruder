@@ -15,6 +15,7 @@
    - Default rekap: H-6 s/d hari ini (label ikut locale).
    - Fitur Detail Cell: Long Press (Mobile) / Double Click (Desktop).
    - Judul Overlay Info dinamis & hilangkan kata "Order".
+   - FIX: Scroll HP macet (passive event listener).
    ============================================================ */
 
 (function () {
@@ -166,7 +167,6 @@
     else if (lipat) ukuran = '?/' + lipat;
     else ukuran = '—';
 
-    // Hapus kata "Order "
     return d.jenisPlastik + ' ' + d.tebal + ' x ' + ukuran;
   }
 
@@ -574,12 +574,10 @@
             if (arr.length > 1) td.classList.add('multi-data');
             if (hasBelowMin) td.classList.add('below-min');
 
-            // Simpan ID di dataset untuk keperluan klik
             const ids = arr.map(function(item) { return item.id; });
             td.dataset.ids = JSON.stringify(ids);
             td.classList.add('cell-clickable');
 
-            // Data konteks untuk judul overlay
             const contextData = {
               mesin: mesin,
               tanggal: ymdToDDMMYY(tgl),
@@ -587,20 +585,18 @@
               ids: ids
             };
 
-            // Event Listeners untuk Desktop (Double Click)
+            // Desktop: Double Click
             td.addEventListener('dblclick', function() {
               bukaInfoDetail(contextData);
             });
 
-            // Event Listeners untuk Mobile (Long Press)
+            // Mobile: Long Press (PERBAIKAN: hapus preventDefault & gunakan passive: true)
             td.addEventListener('touchstart', function(e) {
-              // Mencegah seleksi teks bawaan mobile
-              e.preventDefault(); 
               pressTimer = setTimeout(function() {
                 vibrate();
                 bukaInfoDetail(contextData);
               }, LONG_PRESS_DURATION);
-            }, { passive: false }); // Wajib false agar e.preventDefault bekerja
+            }, { passive: true });
 
             td.addEventListener('touchend', function() {
               if (pressTimer) clearTimeout(pressTimer);
@@ -643,7 +639,6 @@
         if (!container) return;
         container.innerHTML = '';
 
-        // Update Judul Overlay
         const titleEl = document.querySelector('#overlayInfo .modal-title');
         if (titleEl) {
           titleEl.textContent = 'Detail · ' + context.mesin + ' · ' + context.tanggal + ' · ' + context.shift;
@@ -681,7 +676,7 @@
                    '<span class="info-value highlight">' + (d.noSPK || '—') + '</span>';
     card.appendChild(r1);
 
-    // Order (tanpa kata Order)
+    // Spesifikasi (tanpa kata Order)
     const r2 = document.createElement('div');
     r2.className = 'info-row';
     r2.innerHTML = '<span class="info-label">Spesifikasi</span>' +
@@ -780,7 +775,6 @@
     const btnYesConfirm = $('btnYesConfirm');
     if (btnYesConfirm) btnYesConfirm.addEventListener('click', onHapusConfirmed);
 
-    // Overlay Info
     const btnCloseInfo = $('btnCloseInfo');
     if (btnCloseInfo) btnCloseInfo.addEventListener('click', closeInfoOverlay);
     const btnTutupInfo = $('btnTutupInfo');
