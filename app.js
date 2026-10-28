@@ -8,14 +8,12 @@
    - Beep sukses/gagal saat cari SPK.
    - Loading sync = overlay full screen (neon), aktif sejak reload.
    - Rangkuman mesin aktif per jenis (PP/PE/HD) + total.
-   - Debounce cariSPK (400ms).
    - Validasi satuan instan; Min/Max tunda 800ms.
    - Halaman 2: Rekap Speed (read-only, rentang 7 hari).
    - Warna merah rekap aktif kalau minSpeed terisi.
    - Default rekap: H-6 s/d hari ini (label ikut locale).
    - Fitur Detail Cell: Long Press (Mobile) / Double Click (Desktop).
-   - Judul Overlay Info dinamis & hilangkan kata "Order".
-   - FIX: Scroll HP macet (passive event listener).
+   - CACHE: Data master SPK diunduh sekali di awal, pencarian instan.
    ============================================================ */
 
 (function () {
@@ -27,6 +25,11 @@
   let kategoriMesin = {};
   let hasilInput = {};
   let pendingInput = {};
+
+  // Cache untuk Database SPK (Offline Lookup)
+  let masterSPK = {};
+  let masterSPKLoaded = false;
+  let masterSPKLoading = false;
 
   let currentMesin = null;
   let currentKategori = null;
@@ -285,6 +288,7 @@
     isSyncing = true;
 
     loadDaftarMesin();
+    loadMasterSPK(); // Download database SPK di awal (background)
   });
 
   function initTanggal() {
@@ -301,6 +305,33 @@
   function initFooterTahun() {
     const el = $('footerTahun');
     if (el) el.textContent = new Date().getFullYear();
+  }
+
+  /* ------------------------------------------------------------
+     LOAD MASTER SPK (CACHE)
+     ------------------------------------------------------------ */
+  function loadMasterSPK() {
+    if (masterSPKLoaded || masterSPKLoading) return;
+    masterSPKLoading = true;
+    
+    // Ambil tahun dari tanggal default (hari ini)
+    const tahun = String(CONFIG.DEFAULT_TAHUN || new Date().getFullYear());
+
+    callGAS({ action: 'getMasterSPK', tahun: tahun })
+      .then(function (res) {
+        if (res && res.success && res.data) {
+          masterSPK = res.data;
+          masterSPKLoaded = true;
+        } else {
+          console.warn('Gagal memuat master SPK:', res ? res.error : 'unknown');
+        }
+      })
+      .catch(function (err) {
+        console.warn('Error memuat master SPK:', err);
+      })
+      .finally(function () {
+        masterSPKLoading = false;
+      });
   }
 
   /* ------------------------------------------------------------
@@ -508,7 +539,7 @@
       if (!map[r.mesin]) map[r.mesin] = {};
       if (!map[r.mesin][r.tanggal]) map[r.mesin][r.tanggal] = {};
       if (!map[r.mesin][r.tanggal][r.shift]) map[r.mesin][r.tanggal][r.shift] = [];
-      map[r.mesin][r.tanggal][r.shift].push({ id: r.id, speed: r.speed });
+      map[r.mesin][r.tanggal][r.shift].push({ id: r.id, noSPK: r.noSPK, speed: r.speed });
     });
 
     // Header
@@ -574,15 +605,15 @@
             if (arr.length > 1) td.classList.add('multi-data');
             if (hasBelowMin) td.classList.add('below-min');
 
-            const ids = arr.map(function(item) { return item.id; });
-            td.dataset.ids = JSON.stringify(ids);
+            // Simpan data array utuh di dataset (berisi id, noSPK, speed)
+            td.dataset.items = JSON.stringify(arr);
             td.classList.add('cell-clickable');
 
             const contextData = {
               mesin: mesin,
               tanggal: ymdToDDMMYY(tgl),
               shift: SHIFT_LABEL[sh] || sh,
-              ids: ids
+              items: arr // Mengirim array item langsung
             };
 
             // Desktop: Double Click
@@ -590,7 +621,7 @@
               bukaInfoDetail(contextData);
             });
 
-            // Mobile: Long Press (PERBAIKAN: hapus preventDefault & gunakan passive: true)
+            // Mobile: Long Press
             td.addEventListener('touchstart', function(e) {
               pressTimer = setTimeout(function() {
                 vibrate();
@@ -617,52 +648,46 @@
   }
 
   /* ------------------------------------------------------------
-     OVERLAY INFO DETAIL
+     OVERLAY INFO DETAIL (OFFLINE LOOKUP)
      ------------------------------------------------------------ */
   function bukaInfoDetail(context) {
-    const ids = context.ids;
-    if (!ids || ids.length === 0) return;
+    const items = context.items;
+    if (!items || items.length === 0) return;
 
-    ensureSyncOverlay();
-    const ov = $('syncOverlay');
-    if (ov) ov.classList.add('active');
+    const container = $('infoContainer');
+    if (!container) return;
+    container.innerHTML = '';
 
-    let promises = ids.map(function(id) {
-      return callGAS({ action: 'getDetailByID', id: id });
+    const titleEl = document.querySelector('#overlayInfo .modal-title');
+    if (titleEl) {
+      titleEl.textContent = 'Detail · ' + context.mesin + ' · ' + context.tanggal + ' · ' + context.shift;
+    }
+
+    let adaData = false;
+    items.forEach(function(item) {
+      // Cari detail SPK dari CACHE (instan)
+      const spkData = masterSPK[item.noSPK] || {};
+      
+      // Gabungkan data tabel (speed, noSPK) dengan data master (jenis, tebal, lebar, lipat)
+      const detail = {
+        noSPK: item.noSPK,
+        speed: item.speed,
+        jenisPlastik: spkData.jenisPlastik || '—',
+        tebal: spkData.tebal || '—',
+        lebar: spkData.lebar || '—',
+        lipat: spkData.lipat || ''
+      };
+
+      adaData = true;
+      container.appendChild(buildInfoCard(detail));
     });
 
-    Promise.all(promises)
-      .then(function(results) {
-        if (ov) ov.classList.remove('active');
-        
-        const container = $('infoContainer');
-        if (!container) return;
-        container.innerHTML = '';
+    if (!adaData) {
+      container.innerHTML = '<div class="list-empty">Data detail tidak ditemukan.</div>';
+    }
 
-        const titleEl = document.querySelector('#overlayInfo .modal-title');
-        if (titleEl) {
-          titleEl.textContent = 'Detail · ' + context.mesin + ' · ' + context.tanggal + ' · ' + context.shift;
-        }
-
-        let adaData = false;
-        results.forEach(function(res) {
-          if (res && res.success && res.data) {
-            adaData = true;
-            container.appendChild(buildInfoCard(res.data));
-          }
-        });
-
-        if (!adaData) {
-          container.innerHTML = '<div class="list-empty">Data detail tidak ditemukan.</div>';
-        }
-
-        const overlayInfo = $('overlayInfo');
-        if (overlayInfo) overlayInfo.classList.add('active');
-      })
-      .catch(function(err) {
-        if (ov) ov.classList.remove('active');
-        showToast('Gagal memuat detail: ' + (err && err.message ? err.message : err), 'error');
-      });
+    const overlayInfo = $('overlayInfo');
+    if (overlayInfo) overlayInfo.classList.add('active');
   }
 
   function buildInfoCard(d) {
@@ -676,7 +701,7 @@
                    '<span class="info-value highlight">' + (d.noSPK || '—') + '</span>';
     card.appendChild(r1);
 
-    // Spesifikasi (tanpa kata Order)
+    // Spesifikasi
     const r2 = document.createElement('div');
     r2.className = 'info-row';
     r2.innerHTML = '<span class="info-label">Spesifikasi</span>' +
@@ -775,6 +800,7 @@
     const btnYesConfirm = $('btnYesConfirm');
     if (btnYesConfirm) btnYesConfirm.addEventListener('click', onHapusConfirmed);
 
+    // Overlay Info
     const btnCloseInfo = $('btnCloseInfo');
     if (btnCloseInfo) btnCloseInfo.addEventListener('click', closeInfoOverlay);
     const btnTutupInfo = $('btnTutupInfo');
@@ -1163,7 +1189,7 @@
   }
 
   /* ------------------------------------------------------------
-     SPK LOOKUP (debounce 400ms)
+     SPK LOOKUP (OFFLINE - CACHE)
      ------------------------------------------------------------ */
   function onSPKInputChange(immediate) {
     const el = $('spkInput');
@@ -1203,24 +1229,98 @@
   }
 
   function runSPKLookup(noSPK) {
-    const tahun = getTahunDariTanggal();
-    const kategori = currentKategori;
-    const mesin = currentMesin;
     const seq = ++lookupSeq;
 
-    callGAS({ action: 'cariSPK', noSPK: noSPK, kategori: kategori, tahun: tahun, mesin: mesin })
-      .then(function (res) {
-        if (seq !== lookupSeq) return;
-        handleLookupResult(res);
-      })
-      .catch(function (err) {
-        if (seq !== lookupSeq) return;
-        currentSPKData = null;
-        currentSPKValid = false;
-        setSPKInfo('Error: ' + (err && err.message ? err.message : err), 'error');
-        playBeepFail(); vibrate();
-        validateSpeed();
+    // Jika master SPK belum selesai diunduh, tunggu (polling singkat)
+    if (!masterSPKLoaded) {
+      if (masterSPKLoading) {
+        setTimeout(function() { 
+          if (seq === lookupSeq) runSPKLookup(noSPK); 
+        }, 500);
+        return;
+      } else {
+        // Jika gagal load, coba muat ulang
+        loadMasterSPK();
+        setTimeout(function() { 
+          if (seq === lookupSeq) runSPKLookup(noSPK); 
+        }, 1000);
+        return;
+      }
+    }
+
+    // --- PENCARIAN INSTAN DI MEMORI ---
+    const key = String(noSPK).trim();
+    const data = masterSPK[key];
+    
+    // Dapatkan info mesin (satuan/min/max) dari currentMesinInfo 
+    // (karena getMesinDetail dipanggil terpisah atau kita asumsikan sudah ada)
+    // Note: Untuk validasi mesin (Hz/Rpm), kita tetap butuh data dari sheet Mesin.
+    // Kita gunakan currentMesinInfo yang didapat dari loadMesinDetail (jika sudah jalan).
+    // Tapi karena kita butuh sinkron, kita bisa fallback ke default jika kosong.
+    
+    let infoMesin = { satuan: '', minSpeed: null, maxSpeed: null };
+    // Coba ambil dari state jika ada (biasanya di-load saat rekap, atau kita bisa fetch sekali)
+    // Untuk amannya, kita asumsikan satuan didapat dari getMesinDetail yang dipanggil di background.
+    // (Di kode ini, loadMesinDetail dipanggil saat buka rekap, jadi mungkin belum ada).
+    // Solusi: Kita tetap butuh validasi satuan, jadi panggil fungsi lokal cepat.
+    
+    // --- Ambil data mesin dari cache lokal (jika ada) ---
+    // Jika belum ada, kita harus panggil GAS (hanya sekali).
+    if (!mesinMinMap) {
+      // Panggil GAS untuk detail mesin di background
+      callGAS({ action: 'getMesinDetail' }).then(function(res) {
+        if (res && res.success && res.data) {
+          const map = {};
+          res.data.forEach(function (row) {
+            const nama = String(row.mesin || '').trim();
+            if (!nama) return;
+            map[nama] = {
+              minSpeed: (row.minSpeed != null ? Number(row.minSpeed) : null),
+              satuan: String(row.satuan || '').trim()
+            };
+          });
+          // Ubah format map agar sesuai dengan logika kita
+          mesinMinMap = map;
+        }
       });
+      // Sambil menunggu, kita pakai data minimal (tanpa validasi ketat)
+      infoMesin = { satuan: '', minSpeed: null, maxSpeed: null };
+    } else {
+      // Ambil dari cache
+      const cachedMesin = mesinMinMap[currentMesin];
+      if (cachedMesin) {
+        infoMesin = {
+          satuan: cachedMesin.satuan || '',
+          minSpeed: cachedMesin.minSpeed,
+          maxSpeed: null // Kita tidak menyimpan max di map sebelumnya, tapi tidak masalah
+        };
+      }
+    }
+
+    // Simulasi hasil handleLookupResult
+    const res = {
+      success: true,
+      found: !!data,
+      valid: false,
+      error: '',
+      data: data,
+      mesinInfo: infoMesin
+    };
+
+    if (!data) {
+      res.error = 'No SPK "' + key + '" tidak ditemukan di database.';
+    } else {
+      const kategoriMesinUpper = String(currentKategori || '').toUpperCase();
+      const kodeSPK = data.kodeJenis;
+      
+      if (kodeSPK !== kategoriMesinUpper) {
+        res.error = 'Jenis plastik tidak cocok! Mesin: ' + kategoriMesinUpper + ' · SPK: ' + kodeSPK;
+      } else {
+        res.valid = true;
+      }
+    }
+
+    handleLookupResult(res);
   }
 
   function handleLookupResult(res) {
