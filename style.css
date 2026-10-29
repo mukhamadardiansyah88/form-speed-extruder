@@ -890,7 +890,6 @@ select option { background: #0a0f23; color: var(--text-main); }
   min-width: 100%;
   font-family: 'Rajdhani', system-ui, sans-serif;
   font-size: 0.85rem;
-  /* Mencegah seleksi teks di mobile (long press) */
   user-select: none;
   -webkit-user-select: none;
   -ms-user-select: none;
@@ -986,6 +985,11 @@ select option { background: #0a0f23; color: var(--text-main); }
   background: rgba(0, 240, 255, 0.15) !important;
 }
 
+/* Khusus kolom mesin, hover-nya beda warna (pink) */
+.rekap-table td.cell-mesin.cell-clickable:hover {
+  background: rgba(255, 0, 224, 0.25) !important;
+}
+
 .rekap-table td.multi-data {
   background: rgba(255, 215, 0, 0.18) !important;
   color: #ffe98a;
@@ -1009,7 +1013,7 @@ select option { background: #0a0f23; color: var(--text-main); }
 #overlayInfo .modal-title {
   color: var(--neon-green);
   text-shadow: 0 0 10px rgba(57, 255, 20, 0.6);
-  font-size: 1.05rem; /* Sedikit lebih kecil agar muat teks panjang */
+  font-size: 1.05rem;
 }
 
 .info-card {
@@ -1031,6 +1035,7 @@ select option { background: #0a0f23; color: var(--text-main); }
   border-bottom: 1px dashed rgba(0, 240, 255, 0.2);
   padding-bottom: 6px;
   margin-bottom: 6px;
+  gap: 12px;
 }
 .info-row:last-child {
   border-bottom: none;
@@ -1051,6 +1056,8 @@ select option { background: #0a0f23; color: var(--text-main); }
   font-weight: 700;
   font-size: 0.95rem;
   text-align: right;
+  word-break: break-word;
+  white-space: normal;
 }
 .info-value.highlight {
   color: var(--neon-cyan);
