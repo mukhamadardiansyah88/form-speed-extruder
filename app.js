@@ -13,8 +13,8 @@
    - Warna merah rekap aktif kalau minSpeed terisi.
    - Default rekap: H-6 s/d hari ini (label ikut locale).
    - Fitur Detail Cell: Long Press (Mobile) / Double Click (Desktop).
+   - Fitur Rekap Mesin: Klik kolom mesin untuk lihat histori.
    - CACHE: Data master SPK diunduh sekali di awal, pencarian instan.
-   - FIX: Anti double-tap pada tombol Simpan (isSaving flag).
    ============================================================ */
 
 (function () {
@@ -59,7 +59,7 @@
   let pendingDeleteIndex = null;
 
   let isSyncing = false;
-  let isSaving = false; // Flag anti double-tap
+  let isSaving = false;
 
   let lastRangkuman = { pp: -1, pe: -1, hd: -1, total: -1 };
   let lastSummaryText = '';
@@ -578,9 +578,34 @@
       const tr = document.createElement('tr');
 
       const tdMesin = document.createElement('td');
-      tdMesin.className = 'cell-mesin cell-mesin-highlight';
+      tdMesin.className = 'cell-mesin cell-mesin-highlight cell-clickable'; // Tambah class clickable
       tdMesin.textContent = mesin;
       tr.appendChild(tdMesin);
+
+      // Event Listener khusus untuk Kolom Mesin (Rekap Mesin)
+      const contextMesin = {
+        mesin: mesin,
+        tanggalList: tanggalList,
+        shiftChecked: shiftChecked
+      };
+
+      tdMesin.addEventListener('dblclick', function() {
+        bukaRekapMesin(contextMesin);
+      });
+
+      tdMesin.addEventListener('touchstart', function(e) {
+        pressTimer = setTimeout(function() {
+          vibrate();
+          bukaRekapMesin(contextMesin);
+        }, LONG_PRESS_DURATION);
+      }, { passive: true });
+
+      tdMesin.addEventListener('touchend', function() {
+        if (pressTimer) clearTimeout(pressTimer);
+      });
+      tdMesin.addEventListener('touchmove', function() {
+        if (pressTimer) clearTimeout(pressTimer);
+      });
 
       const minSpeed = (mesinMinMap && mesinMinMap[mesin] != null) ? mesinMinMap[mesin] : null;
 
@@ -646,7 +671,7 @@
   }
 
   /* ------------------------------------------------------------
-     OVERLAY INFO DETAIL (OFFLINE LOOKUP)
+     OVERLAY INFO DETAIL (PER CELL)
      ------------------------------------------------------------ */
   function bukaInfoDetail(context) {
     const items = context.items;
@@ -706,6 +731,99 @@
     r3.className = 'info-row';
     r3.innerHTML = '<span class="info-label">Speed</span>' +
                    '<span class="info-value highlight">' + (d.speed || '—') + '</span>';
+    card.appendChild(r3);
+
+    return card;
+  }
+
+  /* ------------------------------------------------------------
+     OVERLAY REKAP PER MESIN
+     ------------------------------------------------------------ */
+  function bukaRekapMesin(context) {
+    const mesin = context.mesin;
+    const tanggalList = context.tanggalList;
+    const shiftChecked = context.shiftChecked;
+
+    const container = $('infoContainer');
+    if (!container) return;
+    container.innerHTML = '';
+
+    const titleEl = document.querySelector('#overlayInfo .modal-title');
+    if (titleEl) {
+      titleEl.textContent = 'Rekap Mesin · ' + mesin;
+    }
+
+    // Susun data berdasarkan tanggal dan shift terpilih
+    const mapData = {};
+    rekapRawData.forEach(function (r) {
+      if (r.mesin !== mesin) return;
+      if (shiftChecked.indexOf(r.shift) === -1) return;
+      
+      if (!mapData[r.tanggal]) mapData[r.tanggal] = {};
+      if (!mapData[r.tanggal][r.shift]) mapData[r.tanggal][r.shift] = [];
+      mapData[r.tanggal][r.shift].push({ id: r.id, noSPK: r.noSPK, speed: r.speed });
+    });
+
+    let adaBaris = false;
+
+    // Loop berdasarkan tanggal (outer)
+    tanggalList.forEach(function (tgl) {
+      // Loop berdasarkan shift (inner)
+      shiftChecked.forEach(function (sh) {
+        const rows = (mapData[tgl] && mapData[tgl][sh]) || [];
+        
+        // Jika tidak ada data sama sekali untuk tgl+shift ini, buat 1 baris kosong
+        if (rows.length === 0) {
+          adaBaris = true;
+          container.appendChild(buildRekapCard(ymdToDDMMYY(tgl), SHIFT_LABEL[sh] || sh, null, null));
+        } else {
+          // Jika ada data, bisa lebih dari 1 baris (jika ada duplikat)
+          rows.forEach(function(row) {
+            adaBaris = true;
+            const spkData = masterSPK[row.noSPK] || {};
+            const ukuran = formatSPKInfo({
+              jenisPlastik: spkData.jenisPlastik,
+              tebal: spkData.tebal,
+              lebar: spkData.lebar,
+              lipat: spkData.lipat
+            });
+            container.appendChild(buildRekapCard(ymdToDDMMYY(tgl), SHIFT_LABEL[sh] || sh, ukuran, row.speed));
+          });
+        }
+      });
+    });
+
+    if (!adaBaris) {
+      container.innerHTML = '<div class="list-empty">Tidak ada data untuk mesin ini pada rentang/filter yang dipilih.</div>';
+    }
+
+    const overlayInfo = $('overlayInfo');
+    if (overlayInfo) overlayInfo.classList.add('active');
+  }
+
+  function buildRekapCard(tanggal, shift, ukuran, speed) {
+    const card = document.createElement('div');
+    card.className = 'info-card';
+
+    // Baris 1: Tanggal & Shift
+    const r1 = document.createElement('div');
+    r1.className = 'info-row';
+    r1.innerHTML = '<span class="info-label">' + tanggal + '</span>' +
+                   '<span class="info-value" style="color:var(--neon-pink)">' + shift + '</span>';
+    card.appendChild(r1);
+
+    // Baris 2: Ukuran
+    const r2 = document.createElement('div');
+    r2.className = 'info-row';
+    r2.innerHTML = '<span class="info-label">Ukuran</span>' +
+                   '<span class="info-value">' + (ukuran || '—') + '</span>';
+    card.appendChild(r2);
+
+    // Baris 3: Speed
+    const r3 = document.createElement('div');
+    r3.className = 'info-row';
+    r3.innerHTML = '<span class="info-label">Speed</span>' +
+                   '<span class="info-value highlight">' + (speed || '—') + '</span>';
     card.appendChild(r3);
 
     return card;
@@ -1609,7 +1727,7 @@
      SIMPAN (batch pending) — SATU request tambahBanyak
      ------------------------------------------------------------ */
   function onSimpan() {
-    if (isSaving) return; // Mencegah double-tap
+    if (isSaving) return;
 
     const ctx = getTanggalShift();
     if (!ctx.tanggal) { showToast('Tanggal belum diisi.', 'error'); return; }
@@ -1631,7 +1749,7 @@
     if (rows.length === 0) { showToast('Belum ada baris baru untuk disimpan.', 'error'); return; }
 
     const btn = $('btnSimpan');
-    isSaving = true; // Set flag
+    isSaving = true;
     btn.disabled = true;
     btn.textContent = '⏳ Menyimpan...';
 
@@ -1639,7 +1757,7 @@
       .then(function (res) {
         btn.disabled = false;
         btn.textContent = '💾 Simpan ke Sheet Inputan';
-        isSaving = false; // Reset flag
+        isSaving = false;
 
         if (!res || !res.success) {
           showToast('Gagal simpan: ' + ((res && res.error) || 'unknown'), 'error');
@@ -1650,8 +1768,8 @@
         pendingInput = {};
         updateSummary();
         
-        if (res.gagal > 0) {
-          showToast('Disimpan: ' + jumlah + ' baris. ' + res.gagal + ' baris dilewati (duplikat).', 'success');
+        if (res.duplikat > 0) {
+          showToast('Disimpan: ' + jumlah + ' baris. ' + res.duplikat + ' baris dilewati (duplikat).', 'success');
         } else {
           showToast('Berhasil disimpan: ' + jumlah + ' baris.', 'success');
         }
@@ -1661,7 +1779,7 @@
       .catch(function (err) {
         btn.disabled = false;
         btn.textContent = '💾 Simpan ke Sheet Inputan';
-        isSaving = false; // Reset flag
+        isSaving = false;
         showToast('Gagal simpan: ' + (err && err.message ? err.message : err), 'error');
       });
   }
