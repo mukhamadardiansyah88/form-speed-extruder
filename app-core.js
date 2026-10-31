@@ -358,6 +358,14 @@
   }
   APP.switchTab = switchTab;
 
+  function initTabs() {
+    const btnForm = $('tabForm');
+    const btnRekap = $('tabRekap');
+    if (btnForm) btnForm.addEventListener('click', function () { switchTab('form'); });
+    if (btnRekap) btnRekap.addEventListener('click', function () { switchTab('rekap'); });
+  }
+  APP.initTabs = initTabs;
+
   /* LOAD DAFTAR MESIN */
   function loadDaftarMesin() {
     const container = $('mesinContainer');
